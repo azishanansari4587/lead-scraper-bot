@@ -62,9 +62,9 @@ app.use((req, res, next) => {
 app.use(globalLimiter);
 
 /**
- * Health check endpoint (Public)
+ * Health check endpoint (Public - responds to both /health and /api/health)
  */
-app.get('/health', async (req, res) => {
+app.get(['/health', '/api/health'], async (req, res) => {
   let dbStatus = 'connected';
   try {
     await sequelize.authenticate();
