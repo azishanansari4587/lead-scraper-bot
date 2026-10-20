@@ -14,9 +14,21 @@ const app = express();
 
 // Security middlewares
 app.use(helmet());
+const corsOrigins = [
+  ...((process.env.DASHBOARD_URL || env.DASHBOARD_URL || env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean)),
+  'http://localhost:5173',
+  'http://localhost:5000'
+];
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (corsOrigins.some((allowed) => allowed === '*' || origin === allowed || origin.startsWith(allowed))) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   })

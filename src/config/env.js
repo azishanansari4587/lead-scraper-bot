@@ -9,6 +9,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(5000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  DASHBOARD_URL: z.string().optional().default(''),
   APP_SECRET: z.string().min(16, 'APP_SECRET must be at least 16 characters').default('super-secure-default-app-secret-32-chars'),
   
   // Database settings

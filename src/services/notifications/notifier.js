@@ -110,7 +110,7 @@ class NotifierService {
 📊 *Found:* ${run.foundCount || 0} | *New Leads:* +${run.newCount || 0} | *Dupes:* ${run.duplicateCount || 0}
 ⏱️ *Duration:* ${durationSec}s${topLeadInfo}
 ━━━━━━━━━━━━━━━━━━━━
-View leads in dashboard: ${env.CORS_ORIGIN || 'http://localhost:5173'}
+View leads in dashboard: ${process.env.DASHBOARD_URL || env.DASHBOARD_URL || env.CORS_ORIGIN || 'http://localhost:5173'}
     `.trim();
 
     const telegramRes = await this.sendTelegramAlert(telegramText);
