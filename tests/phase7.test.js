@@ -11,6 +11,7 @@ const scraperManager = require('../src/scrapers/ScraperManager');
 describe('Phase 7 - Scheduler, Notifications & Outreach Helper', () => {
   const testUserId = 'test_phase7_user';
   let runScraperSpy;
+  let dispatchSpy;
 
   beforeAll(async () => {
     await Lead.destroy({ where: { userId: testUserId } });
@@ -25,11 +26,17 @@ describe('Phase 7 - Scheduler, Notifications & Outreach Helper', () => {
       duplicateCount: 2,
       durationMs: 120
     });
+
+    dispatchSpy = vi.spyOn(notifier, 'notifyScraperRunCompleted').mockResolvedValue({
+      telegram: { sent: false },
+      email: { sent: false }
+    });
   });
 
   afterAll(() => {
     schedulerEngine.stop();
     if (runScraperSpy) runScraperSpy.mockRestore();
+    if (dispatchSpy) dispatchSpy.mockRestore();
   });
 
   describe('Notification Service (Telegram & SMTP)', () => {
