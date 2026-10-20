@@ -4,6 +4,7 @@
 
 const express = require('express');
 const scraperManager = require('../../scrapers/ScraperManager');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -21,7 +22,7 @@ router.get('/', (req, res) => {
   res.json({ success: true, sources });
 });
 
-router.patch('/:platform/toggle', (req, res) => {
+router.patch('/:platform/toggle', requireAuth, (req, res) => {
   const { platform } = req.params;
   const scraper = scraperManager.scrapers.get(platform);
   if (!scraper) {

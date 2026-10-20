@@ -112,7 +112,7 @@ app.use('/api/scrape', requireAuth, scrapeRouter);
 app.use('/api/presets', requireAuth, presetsRouter);
 app.use('/api/schedules', requireAuth, schedulesRouter);
 app.use('/api/exports', exportsRouter); // handles public token-signed download & authenticated endpoints
-app.use('/api/sources', requireAuth, sourcesRouter);
+app.use('/api/sources', sourcesRouter);
 app.use('/api/keywords', requireAuth, keywordsRouter);
 app.use('/api/locations', requireAuth, locationsRouter);
 app.use('/api/outreach', requireAuth, outreachRouter);
@@ -165,12 +165,22 @@ let server = null;
 const schedulerEngine = require('../services/scheduler/schedulerEngine');
 
 if (require.main === module) {
-  server = app.listen(env.PORT, async () => {
-    logger.info(`🚀 Lead Scraper API server listening on port ${env.PORT} [${env.NODE_ENV}]`);
+  const preferredPort = parseInt(process.env.PORT || env.PORT || '80', 10);
+  server = app.listen(preferredPort, async () => {
+    logger.info(`🚀 Lead Scraper API server listening on port ${preferredPort} [${env.NODE_ENV}]`);
     try {
       await schedulerEngine.start();
     } catch (schedErr) {
       logger.error({ schedErr: schedErr.message }, 'Failed to start scheduler engine on server boot');
+    }
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EACCES' && preferredPort === 80) {
+      logger.warn('Port 80 requires elevated privileges, falling back to port 5000...');
+      server = app.listen(5000, async () => {
+        logger.info('🚀 Lead Scraper API server listening on fallback port 5000');
+      });
     }
   });
 

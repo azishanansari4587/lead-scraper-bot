@@ -2,9 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Layers, ShieldCheck, Zap, Power } from 'lucide-react';
 import { api } from '../api';
 
+const DEFAULT_SOURCES = [
+  { platform: 'google_maps', name: 'Google Maps (Web Stealth)', enabled: true, rateLimitMs: 2000, tier: 1 },
+  { platform: 'google_places', name: 'Google Places (Official API)', enabled: true, rateLimitMs: 500, tier: 1 },
+  { platform: 'overpass', name: 'OpenStreetMap Overpass (Global)', enabled: true, rateLimitMs: 1000, tier: 1 },
+  { platform: 'indiamart', name: 'IndiaMart Directory', enabled: true, rateLimitMs: 2500, tier: 2 },
+  { platform: 'tradeindia', name: 'TradeIndia Directory', enabled: true, rateLimitMs: 2500, tier: 2 },
+  { platform: 'justdial', name: 'Justdial Directory', enabled: true, rateLimitMs: 2000, tier: 2 },
+  { platform: 'yellowpages_uae', name: 'YellowPages UAE', enabled: true, rateLimitMs: 2000, tier: 2 },
+  { platform: 'yelp', name: 'Yelp Business Directory', enabled: true, rateLimitMs: 2000, tier: 2 },
+  { platform: 'yellowpages', name: 'YellowPages US', enabled: true, rateLimitMs: 2000, tier: 2 },
+  { platform: 'houzz', name: 'Houzz Professionals', enabled: true, rateLimitMs: 2500, tier: 2 },
+  { platform: 'europages', name: 'Europages EU Directory', enabled: true, rateLimitMs: 2500, tier: 2 },
+  { platform: 'alibaba', name: 'Alibaba Suppliers', enabled: true, rateLimitMs: 3000, tier: 2 }
+];
+
 export default function Sources() {
-  const [sources, setSources] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [sources, setSources] = useState(DEFAULT_SOURCES);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadSources();
@@ -14,7 +29,9 @@ export default function Sources() {
     try {
       setLoading(true);
       const res = await api.getSources();
-      setSources(res.sources || []);
+      if (Array.isArray(res.sources) && res.sources.length > 0) {
+        setSources(res.sources);
+      }
     } catch (err) {
       console.error('Failed to load sources', err);
     } finally {

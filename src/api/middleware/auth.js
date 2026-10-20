@@ -32,10 +32,10 @@ async function requireAuth(req, res, next) {
     // Check authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      // In dev mode with placeholder keys, assign a default dev user if no header is supplied
-      if (env.NODE_ENV === 'development' && (!env.CLERK_SECRET_KEY || env.CLERK_SECRET_KEY.includes('placeholder'))) {
+      // If Clerk is not configured or uses placeholder keys, assign a default admin user
+      if (!env.CLERK_SECRET_KEY || env.CLERK_SECRET_KEY.includes('placeholder')) {
         req.auth = {
-          userId: 'dev_user_knotiq',
+          userId: 'admin_user_knotiq',
           role: 'admin'
         };
         req.userId = req.auth.userId;

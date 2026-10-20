@@ -48,6 +48,14 @@ const PLATFORM_LABELS = {
   alibaba: 'Alibaba Suppliers'
 };
 
+const DEFAULT_SOURCES = Object.entries(PLATFORM_LABELS).map(([platform, name]) => ({
+  platform,
+  name,
+  enabled: true,
+  rateLimitMs: 1500,
+  tier: ['overpass', 'google_places', 'google_maps'].includes(platform) ? 1 : 2
+}));
+
 export default function SearchScrape({ onNavigate }) {
   const [country, setCountry] = useState('UAE');
   const [city, setCity] = useState('Dubai');
@@ -55,7 +63,7 @@ export default function SearchScrape({ onNavigate }) {
   const [keyword, setKeyword] = useState('');
   const [platform, setPlatform] = useState('overpass');
   const [enrichWebsites, setEnrichWebsites] = useState(true);
-  const [sources, setSources] = useState([]);
+  const [sources, setSources] = useState(DEFAULT_SOURCES);
 
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState(null);
@@ -75,7 +83,9 @@ export default function SearchScrape({ onNavigate }) {
 
   useEffect(() => {
     api.getSources().then((data) => {
-      setSources(data.sources || []);
+      if (Array.isArray(data.sources) && data.sources.length > 0) {
+        setSources(data.sources);
+      }
     }).catch(() => {});
   }, []);
 
