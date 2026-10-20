@@ -68,18 +68,24 @@ async function runBackup() {
       records: snapshot.counts
     }, 'JSON database snapshot generated successfully');
 
-    // 3. Prune older backups (keep last 10)
-    const existingBackups = fs.readdirSync(backupDir)
-      .filter((f) => f.startsWith('snapshot_') || f.startsWith('sqlite_backup_'))
-      .sort();
+    // 3. Prune older backups (keep last 10 snapshots and last 10 sqlite backups)
+    const pruneGroup = (prefix, maxKeep = 10) => {
+      const files = fs.readdirSync(backupDir)
+        .filter((f) => f.startsWith(prefix))
+        .map((f) => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtimeMs }))
+        .sort((a, b) => a.time - b.time);
 
-    if (existingBackups.length > 20) {
-      const toDelete = existingBackups.slice(0, existingBackups.length - 20);
-      for (const oldFile of toDelete) {
-        fs.unlinkSync(path.join(backupDir, oldFile));
-        logger.debug({ oldFile }, 'Pruned stale backup file');
+      if (files.length > maxKeep) {
+        const toDelete = files.slice(0, files.length - maxKeep);
+        for (const item of toDelete) {
+          fs.unlinkSync(path.join(backupDir, item.name));
+          logger.debug({ file: item.name }, 'Pruned stale backup file');
+        }
       }
-    }
+    };
+
+    pruneGroup('snapshot_', 10);
+    pruneGroup('sqlite_backup_', 10);
 
     logger.info('Database backup routine finished successfully.');
     return { success: true, timestamp, snapshotFile };
