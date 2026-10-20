@@ -1,0 +1,80 @@
+[
+  { "country": "India", "countryCode": "IN", "state": "Uttar Pradesh", "city": "Bhadohi", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Uttar Pradesh", "city": "Mirzapur", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Uttar Pradesh", "city": "Varanasi", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Uttar Pradesh", "city": "Noida", "priority": 2 },
+  { "country": "India", "countryCode": "IN", "state": "Uttar Pradesh", "city": "Lucknow", "priority": 2 },
+  { "country": "India", "countryCode": "IN", "state": "Delhi", "city": "New Delhi", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Delhi", "city": "Delhi", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Maharashtra", "city": "Mumbai", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Maharashtra", "city": "Pune", "priority": 2 },
+  { "country": "India", "countryCode": "IN", "state": "Rajasthan", "city": "Jaipur", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Karnataka", "city": "Bengaluru", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Telangana", "city": "Hyderabad", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "West Bengal", "city": "Kolkata", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Gujarat", "city": "Ahmedabad", "priority": 1 },
+  { "country": "India", "countryCode": "IN", "state": "Tamil Nadu", "city": "Chennai", "priority": 2 },
+
+  { "country": "UAE", "countryCode": "AE", "state": "Dubai", "city": "Dubai", "priority": 1 },
+  { "country": "UAE", "countryCode": "AE", "state": "Abu Dhabi", "city": "Abu Dhabi", "priority": 1 },
+  { "country": "UAE", "countryCode": "AE", "state": "Abu Dhabi", "city": "Al Ain", "priority": 2 },
+  { "country": "UAE", "countryCode": "AE", "state": "Sharjah", "city": "Sharjah", "priority": 1 },
+  { "country": "UAE", "countryCode": "AE", "state": "Ajman", "city": "Ajman", "priority": 2 },
+  { "country": "UAE", "countryCode": "AE", "state": "Ras Al Khaimah", "city": "Ras Al Khaimah", "priority": 2 },
+  { "country": "UAE", "countryCode": "AE", "state": "Fujairah", "city": "Fujairah", "priority": 2 },
+  { "country": "UAE", "countryCode": "AE", "state": "Umm Al Quwain", "city": "Umm Al Quwain", "priority": 3 },
+
+  { "country": "Saudi Arabia", "countryCode": "SA", "state": "Riyadh Region", "city": "Riyadh", "priority": 1 },
+  { "country": "Saudi Arabia", "countryCode": "SA", "state": "Makkah Region", "city": "Jeddah", "priority": 1 },
+  { "country": "Saudi Arabia", "countryCode": "SA", "state": "Eastern Province", "city": "Dammam", "priority": 2 },
+  { "country": "Saudi Arabia", "countryCode": "SA", "state": "Eastern Province", "city": "Khobar", "priority": 2 },
+
+  { "country": "Qatar", "countryCode": "QA", "state": "Doha", "city": "Doha", "priority": 1 },
+  { "country": "Kuwait", "countryCode": "KW", "state": "Al Asimah", "city": "Kuwait City", "priority": 1 },
+  { "country": "Bahrain", "countryCode": "BH", "state": "Capital", "city": "Manama", "priority": 1 },
+  { "country": "Oman", "countryCode": "OM", "state": "Muscat", "city": "Muscat", "priority": 1 },
+
+  { "country": "United Kingdom", "countryCode": "GB", "state": "Greater London", "city": "London", "priority": 1 },
+  { "country": "United Kingdom", "countryCode": "GB", "state": "Greater Manchester", "city": "Manchester", "priority": 1 },
+  { "country": "United Kingdom", "countryCode": "GB", "state": "West Midlands", "city": "Birmingham", "priority": 2 },
+  { "country": "United Kingdom", "countryCode": "GB", "state": "West Yorkshire", "city": "Leeds", "priority": 2 },
+  { "country": "United Kingdom", "countryCode": "GB", "state": "Scotland", "city": "Glasgow", "priority": 2 },
+
+  { "country": "United States", "countryCode": "US", "state": "New York", "city": "New York", "priority": 1 },
+  { "country": "United States", "countryCode": "US", "state": "California", "city": "Los Angeles", "priority": 1 },
+  { "country": "United States", "countryCode": "US", "state": "California", "city": "San Francisco", "priority": 1 },
+  { "country": "United States", "countryCode": "US", "state": "Illinois", "city": "Chicago", "priority": 1 },
+  { "country": "United States", "countryCode": "US", "state": "Texas", "city": "Houston", "priority": 1 },
+  { "country": "United States", "countryCode": "US", "state": "Texas", "city": "Dallas", "priority": 1 },
+  { "country": "United States", "countryCode": "US", "state": "Florida", "city": "Miami", "priority": 1 },
+  { "country": "United States", "countryCode": "US", "state": "Georgia", "city": "Atlanta", "priority": 2 },
+
+  { "country": "Canada", "countryCode": "CA", "state": "Ontario", "city": "Toronto", "priority": 1 },
+  { "country": "Canada", "countryCode": "CA", "state": "British Columbia", "city": "Vancouver", "priority": 1 },
+  { "country": "Canada", "countryCode": "CA", "state": "Quebec", "city": "Montreal", "priority": 2 },
+
+  { "country": "Australia", "countryCode": "AU", "state": "New South Wales", "city": "Sydney", "priority": 1 },
+  { "country": "Australia", "countryCode": "AU", "state": "Victoria", "city": "Melbourne", "priority": 1 },
+  { "country": "Australia", "countryCode": "AU", "state": "Queensland", "city": "Brisbane", "priority": 2 },
+
+  { "country": "Germany", "countryCode": "DE", "state": "Hesse", "city": "Frankfurt", "priority": 1 },
+  { "country": "Germany", "countryCode": "DE", "state": "Bavaria", "city": "Munich", "priority": 1 },
+  { "country": "Germany", "countryCode": "DE", "state": "Berlin", "city": "Berlin", "priority": 1 },
+  { "country": "Germany", "countryCode": "DE", "state": "Hamburg", "city": "Hamburg", "priority": 2 },
+
+  { "country": "France", "countryCode": "FR", "state": "Île-de-France", "city": "Paris", "priority": 1 },
+  { "country": "France", "countryCode": "FR", "state": "Auvergne-Rhône-Alpes", "city": "Lyon", "priority": 2 },
+
+  { "country": "Netherlands", "countryCode": "NL", "state": "North Holland", "city": "Amsterdam", "priority": 1 },
+  { "country": "Netherlands", "countryCode": "NL", "state": "South Holland", "city": "Rotterdam", "priority": 2 },
+
+  { "country": "Italy", "countryCode": "IT", "state": "Lombardy", "city": "Milan", "priority": 1 },
+  { "country": "Italy", "countryCode": "IT", "state": "Lazio", "city": "Rome", "priority": 2 },
+
+  { "country": "Spain", "countryCode": "ES", "state": "Community of Madrid", "city": "Madrid", "priority": 1 },
+  { "country": "Spain", "countryCode": "ES", "state": "Catalonia", "city": "Barcelona", "priority": 1 },
+
+  { "country": "Sweden", "countryCode": "SE", "state": "Stockholm County", "city": "Stockholm", "priority": 1 },
+  { "country": "New Zealand", "countryCode": "NZ", "state": "Auckland Region", "city": "Auckland", "priority": 1 },
+  { "country": "Singapore", "countryCode": "SG", "state": "Central", "city": "Singapore", "priority": 1 }
+]

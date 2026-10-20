@@ -1,0 +1,60 @@
+[
+  {
+    "type": "node",
+    "id": 1001,
+    "lat": 25.1972,
+    "lon": 55.2744,
+    "tags": {
+      "name": "Persian Carpet House",
+      "shop": "carpet",
+      "addr:street": "Financial Centre Road, Downtown",
+      "addr:city": "Dubai",
+      "phone": "+971 4 339 8888",
+      "website": "https://persiancarpethouse.ae",
+      "email": "info@persiancarpethouse.ae"
+    }
+  },
+  {
+    "type": "node",
+    "id": 1002,
+    "lat": 25.2631,
+    "lon": 55.2972,
+    "tags": {
+      "name": "Al Madaen Carpet & Rug Trading",
+      "shop": "carpet",
+      "addr:street": "Deira Souk Area",
+      "addr:city": "Dubai",
+      "phone": "+971 4 226 5543",
+      "website": "https://almadaencarpets.com",
+      "email": "contact@almadaencarpets.com"
+    }
+  },
+  {
+    "type": "way",
+    "id": 1003,
+    "center": { "lat": 25.1432, "lon": 55.2281 },
+    "tags": {
+      "name": "Heritage Rugs & Antique Furnishings LLC",
+      "shop": "carpet",
+      "addr:street": "Al Quoz Industrial Area 1",
+      "addr:city": "Dubai",
+      "phone": "+971 4 340 1234",
+      "website": "https://heritagerugs.ae"
+    }
+  },
+  {
+    "type": "node",
+    "id": 1004,
+    "lat": 25.1124,
+    "lon": 55.2001,
+    "tags": {
+      "name": "Studio 88 Interior Design & Fitout",
+      "office": "interior_design",
+      "addr:street": "Business Bay",
+      "addr:city": "Dubai",
+      "phone": "+971 4 456 7890",
+      "website": "https://studio88interiors.com",
+      "email": "hello@studio88interiors.com"
+    }
+  }
+]

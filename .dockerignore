@@ -1,0 +1,16 @@
+node_modules/
+dashboard/node_modules/
+dashboard/dist/
+.git/
+.env
+.env.local
+.env.*.local
+data/*.sqlite*
+data/backups/
+data/debug/
+data/exports/
+coverage/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

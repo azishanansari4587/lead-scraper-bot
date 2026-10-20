@@ -1,0 +1,172 @@
+[
+  {
+    "leadType": "rug_retailer",
+    "language": "en",
+    "description": "Carpet & rug retail stores, boutiques, and showrooms",
+    "keywords": [
+      "carpet shop", "rug store", "rug showroom", "oriental rug store",
+      "handmade rug store", "persian rug showroom", "custom rugs store",
+      "luxury carpets retailer", "area rugs showroom", "flooring and rug store"
+    ]
+  },
+  {
+    "leadType": "rug_retailer",
+    "language": "ar",
+    "description": "Carpet & rug retail stores in Arabic",
+    "keywords": [
+      "محل سجاد", "معرض سجاد", "متجر سجاد فاخر", "سجاد يدوي",
+      "سجاد شرقي", "سجاد كشميري", "مفروشات وسجاد"
+    ]
+  },
+  {
+    "leadType": "rug_retailer",
+    "language": "de",
+    "description": "Carpet & rug retail stores in German",
+    "keywords": [
+      "Teppichgeschäft", "Teppichhaus", "Teppichgalerie", "Orientteppiche",
+      "Handgeknüpfte Teppiche", "Teppichladen"
+    ]
+  },
+  {
+    "leadType": "rug_retailer",
+    "language": "fr",
+    "description": "Carpet & rug retail stores in French",
+    "keywords": [
+      "magasin de tapis", "tapis d'orient", "tapis contemporain",
+      "tapis sur mesure", "galerie de tapis"
+    ]
+  },
+  {
+    "leadType": "rug_retailer",
+    "language": "es",
+    "description": "Carpet & rug retail stores in Spanish",
+    "keywords": [
+      "tienda de alfombras", "alfombras orientales", "alfombras a medida",
+      "alfombras de diseño", "tapices y alfombras"
+    ]
+  },
+  {
+    "leadType": "rug_wholesaler",
+    "language": "en",
+    "description": "Carpet & rug wholesalers, importers, distributors",
+    "keywords": [
+      "carpet wholesaler", "rug importer", "rug distributor", "wholesale carpets",
+      "carpet trade supplier", "commercial rug supplier", "contract carpet distributor",
+      "bulk rug importer", "hand tufted rug supplier"
+    ]
+  },
+  {
+    "leadType": "rug_wholesaler",
+    "language": "ar",
+    "description": "Carpet & rug wholesalers and importers in Arabic",
+    "keywords": [
+      "تاجر سجاد جملة", "مستورد سجاد", "موزع سجاد", "توريد سجاد للمشاريع", "سجاد بالجملة"
+    ]
+  },
+  {
+    "leadType": "rug_wholesaler",
+    "language": "de",
+    "description": "Carpet & rug wholesalers in German",
+    "keywords": [
+      "Teppich Großhandel", "Teppich Importeur", "Teppich Großhändler", "Objektteppiche"
+    ]
+  },
+  {
+    "leadType": "interior_designer",
+    "language": "en",
+    "description": "Interior designers, studios, consultants",
+    "keywords": [
+      "interior designer", "interior design studio", "luxury interior designer",
+      "residential interior designer", "commercial interior designer", "interior decorator",
+      "high end interior design", "hospitality interior designer"
+    ]
+  },
+  {
+    "leadType": "interior_designer",
+    "language": "ar",
+    "description": "Interior designers in Arabic",
+    "keywords": [
+      "مصمم ديكور داخلي", "استوديو تصميم داخلي", "شركة تصميم داخلي",
+      "ديكور داخلي فاخر", "مهندس ديكور"
+    ]
+  },
+  {
+    "leadType": "interior_designer",
+    "language": "de",
+    "description": "Interior designers in German",
+    "keywords": [
+      "Innenarchitekt", "Innenarchitektur Studio", "Raumausstatter", "Interior Design Büro"
+    ]
+  },
+  {
+    "leadType": "interior_designer",
+    "language": "fr",
+    "description": "Interior designers in French",
+    "keywords": [
+      "architecte d'intérieur", "décorateur d'intérieur", "studio de design d'intérieur",
+      "agence architecture intérieure"
+    ]
+  },
+  {
+    "leadType": "interior_designer",
+    "language": "es",
+    "description": "Interior designers in Spanish",
+    "keywords": [
+      "diseñador de interiores", "estudio de interiorismo", "decorador de interiores",
+      "arquitectura de interiores"
+    ]
+  },
+  {
+    "leadType": "interior_contractor",
+    "language": "en",
+    "description": "Interior fit-out, contracting, and decoration companies",
+    "keywords": [
+      "interior fit out contractor", "fit out company", "commercial fit out",
+      "interior turnkey contractor", "luxury fit out company", "joinery and interiors"
+    ]
+  },
+  {
+    "leadType": "interior_contractor",
+    "language": "ar",
+    "description": "Fit-out and decoration companies in Arabic",
+    "keywords": [
+      "شركة تشطيبات وديكور", "مقاولات الديكور الداخلي", "شركة فيت اوت", "تنفيذ ديكورات"
+    ]
+  },
+  {
+    "leadType": "architect",
+    "language": "en",
+    "description": "Architects & architecture practices with interiors",
+    "keywords": [
+      "architectural practice", "architecture studio", "residential architect",
+      "luxury villa architect", "commercial architect", "architects and interiors"
+    ]
+  },
+  {
+    "leadType": "home_decor",
+    "language": "en",
+    "description": "Home decor and luxury furniture stores stocking rugs",
+    "keywords": [
+      "luxury furniture store", "home decor showroom", "high end furnishings",
+      "designer home store", "living room furniture and rugs", "boutique home furnishings"
+    ]
+  },
+  {
+    "leadType": "hospitality",
+    "language": "en",
+    "description": "Hotels, resorts, hospitality procurement",
+    "keywords": [
+      "hospitality procurement", "hotel interior contractor", "hotel FF&E supplier",
+      "resort interior procurement", "boutique hotel design"
+    ]
+  },
+  {
+    "leadType": "real_estate",
+    "language": "en",
+    "description": "Real estate staging and luxury property developers",
+    "keywords": [
+      "home staging company", "property staging studio", "luxury property developer interiors",
+      "show home designer"
+    ]
+  }
+]

@@ -1,0 +1,66 @@
+{
+  "name": "lead-scraper-bot",
+  "version": "1.0.0",
+  "description": "B2B Lead Generation Scraper Platform for Knotiq Rugs",
+  "main": "src/api/server.js",
+  "scripts": {
+    "start": "node src/api/server.js",
+    "dev": "nodemon src/api/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "scrape": "node src/scripts/runScraper.js",
+    "check:scrapers": "node src/scripts/checkScrapers.js",
+    "seed": "node src/scripts/seedLocations.js && node src/scripts/seedKeywords.js",
+    "seed:locations": "node src/scripts/seedLocations.js",
+    "seed:keywords": "node src/scripts/seedKeywords.js",
+    "backup": "node src/scripts/backup.js",
+    "migrate": "node src/scripts/runMigrations.js",
+    "build": "npm run build:dashboard",
+    "build:dashboard": "npm run build --prefix dashboard",
+    "tunnel": "node src/scripts/startTunnel.js"
+  },
+  "keywords": [
+    "lead-generation",
+    "scraper",
+    "rugs",
+    "interior-design",
+    "b2b"
+  ],
+  "author": "Knotiq Rugs",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@clerk/backend": "^1.24.1",
+    "@google/generative-ai": "^0.21.0",
+    "axios": "^1.7.9",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "hpp": "^0.2.3",
+    "localtunnel": "^2.0.2",
+    "multer": "^2.4.0",
+    "mysql2": "^3.12.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "playwright": "^1.50.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sequelize": "^6.37.5",
+    "sqlite3": "^5.1.7",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "supertest": "^7.0.0",
+    "vitest": "^3.0.5"
+  },
+  "allowScripts": {
+    "sqlite3@5.1.7": true
+  }
+}
