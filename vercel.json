@@ -32,12 +32,6 @@
       }
     },
     {
-      "source": "/dashboard/(.*)",
-      "destination": {
-        "service": "dashboard"
-      }
-    },
-    {
       "source": "/(.*)",
       "destination": {
         "service": "dashboard"
