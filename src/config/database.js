@@ -7,7 +7,9 @@ const logger = require('./logger');
 let sequelize;
 
 if (env.DB_DIALECT === 'sqlite') {
-  const storagePath = path.resolve(process.cwd(), env.DB_STORAGE);
+  const isVercel = Boolean(process.env.VERCEL);
+  const targetStorage = isVercel ? '/tmp/dev.sqlite' : env.DB_STORAGE;
+  const storagePath = path.isAbsolute(targetStorage) ? targetStorage : path.resolve(process.cwd(), targetStorage);
   const dir = path.dirname(storagePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
