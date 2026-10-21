@@ -232,6 +232,20 @@ Detailed architectural documentation is available in [SECURITY.md](file:///f:/le
 
 ---
 
-## 8. License & Proprietary Notice
+## 8. Deployment Architecture
+
+> **Important:** The backend does **not** deploy to Vercel. Because the backend relies on Playwright headless browsers, background scheduler daemons, persistent socket connections, and database engines, it must be deployed as a long-running container service.
+
+- **Backend Hosting (Docker / Railway / Render):**
+  - Use the provided [Dockerfile](file:///f:/lead-scraper-bot/Dockerfile), [railway.json](file:///f:/lead-scraper-bot/railway.json), or [render.yaml](file:///f:/lead-scraper-bot/render.yaml).
+  - Migrations run automatically on boot before `app.listen`.
+  - For SQLite, mount a persistent volume at `/data` (`DB_PATH=/data/app.db`). For remote MySQL, configure `DATABASE_URL` or `DB_HOST`/`DB_USER`/`DB_PASS`.
+- **Frontend Dashboard Hosting (Vercel):**
+  - Vercel builds and hosts only the Vite static single-page dashboard ([vercel.json](file:///f:/lead-scraper-bot/vercel.json)).
+  - You **must** configure `VITE_API_URL` in Vercel Project Settings pointing to your live backend service (e.g. `https://your-backend.railway.app` or `https://your-backend.onrender.com`).
+
+---
+
+## 9. License & Proprietary Notice
 
 Proprietary and Confidential. Copyright © 2026 **Knotiq Rugs**. All rights reserved.

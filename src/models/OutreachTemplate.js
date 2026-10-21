@@ -33,7 +33,7 @@ const OutreachTemplate = sequelize.define('OutreachTemplate', {
   },
   variables: {
     type: DataTypes.JSON,
-    defaultValue: ['businessName', 'city', 'leadType']
+    defaultValue: () => ['businessName', 'city', 'leadType']
   },
   isDefault: {
     type: DataTypes.BOOLEAN,

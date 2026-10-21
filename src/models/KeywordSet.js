@@ -13,7 +13,7 @@ const KeywordSet = sequelize.define('KeywordSet', {
   },
   keywords: {
     type: DataTypes.JSON,
-    defaultValue: []
+    defaultValue: () => []
   },
   language: {
     type: DataTypes.STRING(10),

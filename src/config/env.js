@@ -31,9 +31,11 @@ const envSchema = z.object({
 
   // Tier 1 Google Places API
   GOOGLE_PLACES_API_KEY: z.string().optional().default(''),
+  GOOGLE_PLACES_DAILY_REQUEST_CAP: z.coerce.number().default(100),
 
   // Gemini AI
   GEMINI_API_KEY: z.string().optional().default(''),
+  GEMINI_MODEL: z.string().default('gemini-1.5-flash'),
   GEMINI_DAILY_LIMIT: z.coerce.number().default(100),
 
   // Scraper Settings
@@ -62,8 +64,8 @@ const envSchema = z.object({
   // Bulk Send Settings & Guardrails
   DAILY_LIMIT: z.coerce.number().default(50),
   DELAY_MS: z.coerce.number().default(3000),
-  DEFAULT_COUNTRY_CODE: z.string().default('91'),
-  BULK_PASSWORD: z.string().default('knotiq2026'),
+  DEFAULT_COUNTRY_CODE: z.string().default('971'),
+  BULK_PASSWORD: z.string().optional().default(''),
   DRY_RUN: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
 
   // Guardrails
@@ -75,6 +77,23 @@ const envSchema = z.object({
 let parsedEnv;
 try {
   parsedEnv = envSchema.parse(process.env);
+
+  // Require DB credentials for mysql/mariadb
+  if (parsedEnv.DB_DIALECT === 'mysql' || parsedEnv.DB_DIALECT === 'mariadb') {
+    if (!parsedEnv.DATABASE_URL) {
+      const missing = [];
+      if (!process.env.DB_HOST && (!parsedEnv.DB_HOST || parsedEnv.DB_HOST === '127.0.0.1')) missing.push('DB_HOST');
+      if (!process.env.DB_NAME && (!parsedEnv.DB_NAME || parsedEnv.DB_NAME === 'lead_scraper_db')) missing.push('DB_NAME');
+      if (!process.env.DB_USER && (!parsedEnv.DB_USER || parsedEnv.DB_USER === 'root')) missing.push('DB_USER');
+      if (!process.env.DB_PASS && !parsedEnv.DB_PASS) missing.push('DB_PASS');
+
+      if (missing.length > 0 && process.env.NODE_ENV !== 'test') {
+        const errorMsg = `Missing required database environment variables for ${parsedEnv.DB_DIALECT}: ${missing.join(', ')}`;
+        console.error(`❌ Startup Error: ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+    }
+  }
 } catch (error) {
   if (error instanceof z.ZodError) {
     console.error('❌ Environment validation failed with errors:');

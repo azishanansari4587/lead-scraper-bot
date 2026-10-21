@@ -12,9 +12,11 @@ const ExcelJS = require('exceljs');
 const env = require('../../config/env');
 const logger = require('../../config/logger');
 const bulkSendService = require('../../services/bulkSendService');
+const crypto = require('crypto');
 const Lead = require('../../models/Lead');
 const OptOut = require('../../models/OptOut');
 const BulkSendLog = require('../../models/BulkSendLog');
+const { requireAdmin } = require('../middleware/auth');
 const { Op } = require('sequelize');
 
 const router = express.Router();
@@ -64,49 +66,64 @@ const upload = multer({
   }
 });
 
+function safeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 /**
  * Authentication Middleware for Bulk Send
  * Protects against unauthorized access when exposed via localtunnel.
  */
 function authBulk(req, res, next) {
-  // If in test mode with test auth bypass
-  if (env.ENABLE_TEST_AUTH && (req.headers['x-test-user-id'] || env.NODE_ENV === 'test')) {
+  const isProduction = (env.NODE_ENV === 'production' || process.env.NODE_ENV === 'production');
+
+  // Test auth bypass: strictly in non-production when ENABLE_TEST_AUTH is on
+  if (!isProduction && env.ENABLE_TEST_AUTH && (req.headers['x-test-user-id'] || env.NODE_ENV === 'test')) {
+    const role = req.headers['x-test-role'] || 'admin';
     req.userId = req.headers['x-test-user-id'] || 'test_user';
+    req.auth = { userId: req.userId, role };
     return next();
   }
 
-  const configuredPass = env.BULK_PASSWORD || 'knotiq2026';
+  // Already authenticated via Clerk / JWT session
+  if (req.auth && req.auth.role === 'admin') {
+    req.userId = req.auth.userId;
+    return next();
+  }
+
+  const configuredPass = env.BULK_PASSWORD || process.env.BULK_PASSWORD;
+  if (!configuredPass || (isProduction && configuredPass === 'knotiq2026')) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Bulk Auth Password is unset or using an insecure default.'
+    });
+  }
+
   const providedPass =
     req.headers['x-bulk-auth'] ||
     (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')
       ? req.headers.authorization.split(' ')[1]
-      : null) ||
-    req.query.key;
+      : null);
 
-  if (providedPass && (providedPass === configuredPass || providedPass === env.APP_SECRET)) {
+  if (configuredPass && providedPass && safeCompare(providedPass, configuredPass)) {
     req.userId = 'bulk_admin';
-    return next();
-  }
-
-  // Also allow if user is already authenticated via session/Clerk in req.userId
-  if (req.userId && req.userId !== 'dev_user_knotiq') {
-    return next();
-  }
-
-  // Allow in development mode if no custom password is set
-  if (env.NODE_ENV === 'development' && (!providedPass || providedPass === 'knotiq2026')) {
-    req.userId = 'dev_user_knotiq';
+    req.auth = { userId: 'bulk_admin', role: 'admin' };
     return next();
   }
 
   return res.status(401).json({
     error: 'Unauthorized',
-    message: 'Invalid or missing Bulk Auth Password. Please enter the password configured in .env (BULK_PASSWORD).'
+    message: 'Invalid or missing Bulk Auth Password.'
   });
 }
 
-// Apply authBulk to all routes in this router
+// Apply authBulk and requireAdmin to all routes in this router
 router.use(authBulk);
+router.use(requireAdmin);
 
 /**
  * GET /api/bulk/verify-auth - Check if current credentials are valid
@@ -120,6 +137,14 @@ router.get('/verify-auth', (req, res) => {
  */
 router.post('/send', async (req, res, next) => {
   try {
+    const configuredPass = env.BULK_PASSWORD || process.env.BULK_PASSWORD;
+    const isTest = (env.NODE_ENV === 'test' || process.env.NODE_ENV === 'test');
+    if (!isTest && (!configuredPass || configuredPass === 'knotiq2026')) {
+      return res.status(403).json({
+        error: 'SecurityRefusal',
+        message: 'BULK_PASSWORD is unset or set to the default insecure value. Refusing to start bulk sending.'
+      });
+    }
     const {
       leads,
       channels = ['email'],

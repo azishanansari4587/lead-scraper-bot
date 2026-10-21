@@ -28,16 +28,29 @@ router.post('/run', async (req, res, next) => {
 
     logger.info({ userId, platform, country, city, leadType }, 'Triggering scrape run via API');
 
-    const result = await scraperManager.runScraper({
-      userId,
-      platform,
-      keyword,
-      leadType,
-      country,
-      state,
-      city,
-      enrichWebsites
-    });
+    let result;
+    if (platform === 'all') {
+      result = await scraperManager.runAllScrapers({
+        userId,
+        keyword,
+        leadType,
+        country,
+        state,
+        city,
+        enrichWebsites
+      });
+    } else {
+      result = await scraperManager.runScraper({
+        userId,
+        platform,
+        keyword,
+        leadType,
+        country,
+        state,
+        city,
+        enrichWebsites
+      });
+    }
 
     res.json({
       success: true,

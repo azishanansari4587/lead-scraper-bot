@@ -37,19 +37,22 @@ if (databaseUrl) {
     logging: env.DB_LOGGING ? (msg) => logger.debug({ msg, context: 'sequelize' }) : false
   });
 } else {
+  const connectTimeout = 10000; // 10s timeout for remote DB connections
   sequelize = new Sequelize(env.DB_NAME, env.DB_USER, env.DB_PASS, {
     host: env.DB_HOST,
-    port: env.DB_PORT,
+    port: env.DB_PORT || 3306,
     dialect: env.DB_DIALECT,
     logging: env.DB_LOGGING ? (msg) => logger.debug({ msg, context: 'sequelize' }) : false,
     pool: {
-      max: 10,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
+      max: 5,
+      min: 1,
+      acquire: 20000,
+      idle: 10000,
+      evict: 5000
     },
     dialectOptions: {
-      charset: 'utf8mb4'
+      charset: 'utf8mb4',
+      connectTimeout: connectTimeout
     }
   });
 }

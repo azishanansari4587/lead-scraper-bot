@@ -23,15 +23,22 @@ class BaseScraper {
    * @param {object} [options]
    */
   constructor(name, options = {}) {
-    if (!name) throw new Error('BaseScraper requires a unique name');
     this.name = name;
     this.enabled = options.enabled !== false;
     this.browser = null;
+    this.lastError = null;
+    this.isBlocked = false;
     this.debugDir = path.resolve(process.cwd(), 'data/debug');
 
     if (!fs.existsSync(this.debugDir)) {
       fs.mkdirSync(this.debugDir, { recursive: true });
     }
+  }
+
+  setLastError(errOrMsg, isBlocked = false) {
+    const msg = typeof errOrMsg === 'string' ? errOrMsg : (errOrMsg?.message || String(errOrMsg));
+    this.lastError = msg;
+    this.isBlocked = isBlocked || /blocked|captcha|403|cloudflare|perimeterx|challenge|access denied/i.test(msg);
   }
 
   getRandomUserAgent() {
@@ -51,7 +58,8 @@ class BaseScraper {
         return await fn();
       } catch (err) {
         attempt++;
-        if (attempt >= maxRetries) throw err;
+        const isClientError = err.response && err.response.status >= 400 && err.response.status < 500 && err.response.status !== 429;
+        if (attempt >= maxRetries || isClientError) throw err;
         logger.warn({ scraper: this.name, attempt, err: err.message }, `Retrying after ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay *= backoffFactor;

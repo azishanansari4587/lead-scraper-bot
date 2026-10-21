@@ -5,6 +5,7 @@ services:
     dockerfilePath: Dockerfile
     plan: starter
     healthCheckPath: /health
+    preDeployCommand: node src/scripts/runMigrations.js
     disk:
       name: data
       mountPath: /data

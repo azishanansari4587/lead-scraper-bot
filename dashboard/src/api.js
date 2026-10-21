@@ -66,6 +66,7 @@ export const api = {
   // Sources
   getSources: () => fetchJson('/sources'),
   toggleSource: (platform) => fetchJson(`/sources/${platform}/toggle`, { method: 'PATCH' }),
+  testSource: (platform, options = {}) => fetchJson(`/sources/${platform}/test`, { method: 'POST', body: JSON.stringify(options) }),
 
   // Exports
   getExports: () => fetchJson('/exports'),

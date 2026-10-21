@@ -4,7 +4,13 @@ async function safeCreateTable(queryInterface, tableName, attributes) {
   try {
     await queryInterface.createTable(tableName, attributes);
   } catch (err) {
-    if (!err.message?.includes('already exists')) {
+    const isExists =
+      err.name === 'SequelizeDatabaseError' &&
+      (err.parent?.code === 'ER_TABLE_EXISTS_ERROR' ||
+       err.parent?.errno === 1050 ||
+       err.message?.includes('already exists') ||
+       err.original?.message?.includes('already exists'));
+    if (!isExists) {
       throw err;
     }
   }
@@ -14,7 +20,13 @@ async function safeAddIndex(queryInterface, tableName, fields, options = {}) {
   try {
     await queryInterface.addIndex(tableName, fields, options);
   } catch (err) {
-    if (!err.message?.includes('already exists')) {
+    const isDup =
+      err.parent?.code === 'ER_DUP_KEYNAME' ||
+      err.parent?.errno === 1061 ||
+      err.message?.includes('already exists') ||
+      err.message?.includes('Duplicate key name') ||
+      err.original?.message?.includes('Duplicate key name');
+    if (!isDup) {
       throw err;
     }
   }
@@ -25,7 +37,7 @@ module.exports = {
     // 1. Leads Table
     await safeCreateTable(queryInterface, 'Leads', {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-      userId: { type: DataTypes.STRING, allowNull: false },
+      userId: { type: DataTypes.STRING(100), allowNull: false },
       businessName: { type: DataTypes.STRING, allowNull: false },
       leadType: { type: DataTypes.STRING, allowNull: false },
       subCategory: { type: DataTypes.STRING, allowNull: true },
@@ -66,10 +78,10 @@ module.exports = {
         defaultValue: 'new'
       },
       notes: { type: DataTypes.TEXT, allowNull: true },
-      tags: { type: DataTypes.JSON, defaultValue: [] },
+      tags: { type: DataTypes.JSON, allowNull: true },
       lastContactedAt: { type: DataTypes.DATE, allowNull: true },
       nextFollowUpAt: { type: DataTypes.DATE, allowNull: true },
-      dedupeKey: { type: DataTypes.STRING, allowNull: false },
+      dedupeKey: { type: DataTypes.STRING(150), allowNull: false },
       firstSeenAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
       lastSeenAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
       createdAt: { type: DataTypes.DATE, allowNull: false },
@@ -84,14 +96,14 @@ module.exports = {
     // 2. ScraperRuns Table
     await safeCreateTable(queryInterface, 'ScraperRuns', {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-      userId: { type: DataTypes.STRING, allowNull: false },
+      userId: { type: DataTypes.STRING(100), allowNull: false },
       platform: { type: DataTypes.STRING, allowNull: false },
       keyword: { type: DataTypes.STRING, allowNull: false },
       country: { type: DataTypes.STRING, allowNull: false },
       state: { type: DataTypes.STRING, allowNull: true },
       city: { type: DataTypes.STRING, allowNull: false },
       status: {
-        type: DataTypes.ENUM('running', 'completed', 'failed', 'blocked'),
+        type: DataTypes.ENUM('running', 'completed', 'failed', 'blocked', 'ok', 'error', 'empty'),
         defaultValue: 'running'
       },
       foundCount: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -108,10 +120,10 @@ module.exports = {
     // 3. Schedules Table
     await safeCreateTable(queryInterface, 'Schedules', {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-      userId: { type: DataTypes.STRING, allowNull: false },
+      userId: { type: DataTypes.STRING(100), allowNull: false },
       name: { type: DataTypes.STRING, allowNull: false },
       cronExpression: { type: DataTypes.STRING, allowNull: false },
-      leadTypes: { type: DataTypes.JSON, defaultValue: [] },
+      leadTypes: { type: DataTypes.JSON, allowNull: true },
       country: { type: DataTypes.STRING, allowNull: false },
       state: { type: DataTypes.STRING, allowNull: true },
       city: { type: DataTypes.STRING, allowNull: false },
@@ -126,9 +138,9 @@ module.exports = {
     // 4. SearchPresets Table
     await safeCreateTable(queryInterface, 'SearchPresets', {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-      userId: { type: DataTypes.STRING, allowNull: false },
+      userId: { type: DataTypes.STRING(100), allowNull: false },
       name: { type: DataTypes.STRING, allowNull: false },
-      leadTypes: { type: DataTypes.JSON, defaultValue: [] },
+      leadTypes: { type: DataTypes.JSON, allowNull: true },
       country: { type: DataTypes.STRING, allowNull: false },
       state: { type: DataTypes.STRING, allowNull: true },
       city: { type: DataTypes.STRING, allowNull: true },
@@ -148,7 +160,7 @@ module.exports = {
     await safeCreateTable(queryInterface, 'KeywordSets', {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
       leadType: { type: DataTypes.STRING, allowNull: false },
-      keywords: { type: DataTypes.JSON, defaultValue: [] },
+      keywords: { type: DataTypes.JSON, allowNull: true },
       language: { type: DataTypes.STRING(10), defaultValue: 'en' },
       description: { type: DataTypes.STRING, allowNull: true },
       isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -172,7 +184,7 @@ module.exports = {
     // 7. ExportJobs Table
     await safeCreateTable(queryInterface, 'ExportJobs', {
       id: { type: DataTypes.STRING, primaryKey: true },
-      userId: { type: DataTypes.STRING, allowNull: false },
+      userId: { type: DataTypes.STRING(100), allowNull: false },
       format: {
         type: DataTypes.ENUM('csv', 'xlsx', 'pdf', 'json', 'whatsapp'),
         allowNull: false
@@ -186,7 +198,7 @@ module.exports = {
       filePath: { type: DataTypes.STRING(1000), allowNull: true },
       downloadUrl: { type: DataTypes.STRING(1000), allowNull: true },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
-      filters: { type: DataTypes.JSON, defaultValue: {} },
+      filters: { type: DataTypes.JSON, allowNull: true },
       errorMessage: { type: DataTypes.TEXT, allowNull: true },
       createdAt: { type: DataTypes.DATE, allowNull: false },
       updatedAt: { type: DataTypes.DATE, allowNull: false }
@@ -195,11 +207,11 @@ module.exports = {
     // 8. AuditLogs Table
     await safeCreateTable(queryInterface, 'AuditLogs', {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-      userId: { type: DataTypes.STRING, allowNull: true },
+      userId: { type: DataTypes.STRING(100), allowNull: true },
       action: { type: DataTypes.STRING, allowNull: false },
       entityType: { type: DataTypes.STRING, allowNull: true },
       entityId: { type: DataTypes.STRING, allowNull: true },
-      details: { type: DataTypes.JSON, defaultValue: {} },
+      details: { type: DataTypes.JSON, allowNull: true },
       ipAddress: { type: DataTypes.STRING, allowNull: true },
       userAgent: { type: DataTypes.STRING(1000), allowNull: true },
       createdAt: { type: DataTypes.DATE, allowNull: false }
@@ -208,7 +220,7 @@ module.exports = {
     // 9. OutreachTemplates Table
     await safeCreateTable(queryInterface, 'OutreachTemplates', {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-      userId: { type: DataTypes.STRING, allowNull: false },
+      userId: { type: DataTypes.STRING(100), allowNull: false },
       name: { type: DataTypes.STRING, allowNull: false },
       targetLeadType: { type: DataTypes.STRING, allowNull: true },
       channel: {
@@ -217,7 +229,7 @@ module.exports = {
       },
       subject: { type: DataTypes.STRING, allowNull: true },
       body: { type: DataTypes.TEXT, allowNull: false },
-      variables: { type: DataTypes.JSON, defaultValue: [] },
+      variables: { type: DataTypes.JSON, allowNull: true },
       isDefault: { type: DataTypes.BOOLEAN, defaultValue: false },
       createdAt: { type: DataTypes.DATE, allowNull: false },
       updatedAt: { type: DataTypes.DATE, allowNull: false }
@@ -230,7 +242,7 @@ module.exports = {
         type: DataTypes.ENUM('email', 'domain', 'phone'),
         allowNull: false
       },
-      value: { type: DataTypes.STRING, allowNull: false },
+      value: { type: DataTypes.STRING(191), allowNull: false },
       reason: { type: DataTypes.STRING, allowNull: true },
       requestedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
       createdAt: { type: DataTypes.DATE, allowNull: false },

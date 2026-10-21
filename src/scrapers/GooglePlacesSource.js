@@ -1,12 +1,37 @@
+/**
+ * Google Places API (New) Scraper
+ * Uses POST https://places.googleapis.com/v1/places:searchText
+ * Returns full place details in a single request with X-Goog-FieldMask,
+ * eliminating the expensive per-place Details loop.
+ */
+
 const axios = require('axios');
 const BaseScraper = require('./BaseScraper');
 const env = require('../config/env');
 const logger = require('../config/logger');
+const { buildSearchQuery } = require('../services/queryBuilder');
+
+// Daily in-memory request tracker
+let dailyRequestTracker = { date: '', count: 0 };
+
+function checkAndIncrementCap(cap = 100) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (dailyRequestTracker.date !== today) {
+    dailyRequestTracker.date = today;
+    dailyRequestTracker.count = 0;
+  }
+  if (dailyRequestTracker.count >= cap) {
+    return false;
+  }
+  dailyRequestTracker.count++;
+  return true;
+}
 
 class GooglePlacesSource extends BaseScraper {
   constructor() {
     super('google_places', { enabled: true });
     this.apiKey = env.GOOGLE_PLACES_API_KEY;
+    this.dailyRequestTracker = dailyRequestTracker;
   }
 
   get activeApiKey() {
@@ -15,11 +40,10 @@ class GooglePlacesSource extends BaseScraper {
   }
 
   buildUrl(keyword, location) {
-    const query = `${keyword} in ${location}`;
-    return `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}`;
+    return 'https://places.googleapis.com/v1/places:searchText';
   }
 
-  async scrape({ keyword, country, state, city, leadType }) {
+  async scrape({ keyword, country = 'UAE', state = null, city = 'Dubai', leadType = 'rug_retailer', pageToken = null }) {
     this.lastError = null;
     const apiKey = this.activeApiKey;
     if (!apiKey) {
@@ -29,75 +53,101 @@ class GooglePlacesSource extends BaseScraper {
       return [];
     }
 
-    const locationQuery = [city, state, country].filter(Boolean).join(', ');
-    const query = `${keyword || leadType.replace('_', ' ')} in ${locationQuery}`;
-    logger.info({ query }, 'Executing Google Places Text Search...');
+    // Enforce daily request budget cap
+    const dailyCap = parseInt(process.env.GOOGLE_PLACES_DAILY_REQUEST_CAP || env.GOOGLE_PLACES_DAILY_REQUEST_CAP || '100', 10);
+    if (!checkAndIncrementCap(dailyCap)) {
+      const capMsg = `Google Places daily request cap of ${dailyCap} requests reached. Halting live search to prevent cost overruns.`;
+      logger.warn(capMsg);
+      this.lastError = capMsg;
+      return [];
+    }
+
+    // Build intelligent query from keywords.json / defaults or custom override
+    const query = buildSearchQuery({ keyword, leadType, city, state, country });
+    logger.info({ query, platform: 'google_places' }, 'Executing Places API (New) searchText...');
+
+    const endpoint = 'https://places.googleapis.com/v1/places:searchText';
+    const fieldMask = [
+      'places.id',
+      'places.displayName',
+      'places.formattedAddress',
+      'places.location',
+      'places.nationalPhoneNumber',
+      'places.internationalPhoneNumber',
+      'places.websiteUri',
+      'places.googleMapsUri',
+      'places.rating',
+      'places.userRatingCount',
+      'places.types'
+    ].join(',');
+
+    const requestBody = {
+      textQuery: query,
+      maxResultCount: 20
+    };
+    if (pageToken) {
+      requestBody.pageToken = pageToken;
+    }
 
     try {
-      const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
       const response = await this.retry(async () => {
-        return await axios.get(searchUrl, { timeout: 15000 });
+        const client = this.client || axios;
+        return await client.post(
+          endpoint,
+          requestBody,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': apiKey,
+              'X-Goog-FieldMask': fieldMask
+            },
+            timeout: 15000
+          }
+        );
       });
 
-      const data = response.data;
-      if (data.status === 'REQUEST_DENIED' || data.status === 'OVER_QUERY_LIMIT') {
-        const errorMsg = data.error_message || `Google Places API request failed with status: ${data.status}`;
-        logger.warn({ status: data.status, msg: errorMsg }, 'Google Places API status warning');
-        this.lastError = errorMsg;
-        return [];
-      }
-
-      const results = data.results || [];
+      const places = response.data?.places || [];
       const leads = [];
 
-      for (const place of results.slice(0, 20)) {
-        let details = place;
-
-        // Optionally fetch Place Details for website & phone
-        if (place.place_id) {
-          try {
-            const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website,url,rating,user_ratings_total,geometry,types&key=${apiKey}`;
-            const detailRes = await axios.get(detailUrl, { timeout: 8000 });
-            if (detailRes.data?.result) {
-              details = { ...place, ...detailRes.data.result };
-            }
-          } catch (detailErr) {
-            logger.debug({ err: detailErr.message }, 'Could not fetch place details');
-          }
-        }
-
-        const name = details.name;
+      for (const place of places) {
+        const name = place.displayName?.text || place.displayName;
         if (!name) continue;
 
         const isRugRelated = /rug|carpet|flooring|matting|dhurrie|kilim/i.test(name) ||
-          (details.types && details.types.some((t) => t.includes('home_goods') || t.includes('carpet')));
+          (Array.isArray(place.types) && place.types.some((t) => t.includes('home_goods') || t.includes('carpet') || t.includes('furniture')));
 
         const raw = {
           name,
           country,
           state,
           city,
-          address: details.formatted_address || null,
-          lat: details.geometry?.location?.lat,
-          lng: details.geometry?.location?.lng,
-          phone: details.international_phone_number || details.formatted_phone_number,
-          website: details.website || null,
-          googleMapsUrl: details.url || `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
-          rating: details.rating || null,
-          reviewCount: details.user_ratings_total || 0,
+          address: place.formattedAddress || null,
+          lat: place.location?.latitude || null,
+          lng: place.location?.longitude || null,
+          phone: place.internationalPhoneNumber || place.nationalPhoneNumber || null,
+          website: place.websiteUri || null,
+          googleMapsUrl: place.googleMapsUri || (place.id ? `https://www.google.com/maps/place/?q=place_id:${place.id}` : null),
+          rating: place.rating || null,
+          reviewCount: place.userRatingCount || 0,
           sellsRugsSignal: isRugRelated,
-          sourceUrl: details.url || null,
-          tags: details.types || []
+          sourceUrl: place.googleMapsUri || null,
+          tags: place.types || []
         };
 
         leads.push(this.standardizeLead(raw, { country, state, city, leadType }));
       }
 
-      logger.info({ found: leads.length }, 'Google Places scrape complete');
+      logger.info({ found: leads.length, platform: 'google_places' }, 'Google Places API (New) scrape complete');
       return leads;
     } catch (err) {
-      logger.error({ err: err.message }, 'Google Places scrape error');
-      this.lastError = err.message;
+      let errorMsg = err.message;
+      if (err.response) {
+        const gErr = err.response.data?.error;
+        const statusCode = err.response.status;
+        errorMsg = gErr ? `HTTP ${statusCode}: ${gErr.message || JSON.stringify(gErr)}` : `HTTP ${statusCode}: ${err.message}`;
+      }
+      logger.error({ err: errorMsg, platform: 'google_places' }, 'Google Places API (New) request failed');
+      this.lastError = errorMsg;
       return [];
     }
   }

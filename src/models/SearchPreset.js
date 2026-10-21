@@ -17,7 +17,7 @@ const SearchPreset = sequelize.define('SearchPreset', {
   },
   leadTypes: {
     type: DataTypes.JSON,
-    defaultValue: []
+    defaultValue: () => []
   },
   country: {
     type: DataTypes.STRING,

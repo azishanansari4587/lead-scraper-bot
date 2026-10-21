@@ -54,19 +54,22 @@ class BulkSendService {
    * @param {string} defaultCountry
    * @returns {{ valid: boolean, phone?: string, reason?: string }}
    */
-  cleanPhone(rawPhone, defaultCountry = env.DEFAULT_COUNTRY_CODE || '91') {
+  cleanPhone(rawPhone, defaultCountry = env.DEFAULT_COUNTRY_CODE || '971') {
     if (!rawPhone) {
       return { valid: false, reason: 'Phone number is empty' };
     }
 
+    const countryCode = String(defaultCountry).trim().replace(/^\+/, '') || '971';
     let cleaned = String(rawPhone).trim().replace(/[^0-9+]/g, '');
     cleaned = cleaned.replace(/^\+/, '');
 
-    // Handle leading 0 (e.g., 09876543210 -> 9876543210 -> 919876543210)
-    if (cleaned.startsWith('0') && cleaned.length === 11) {
-      cleaned = defaultCountry + cleaned.slice(1);
+    // Handle UAE local mobile: 05XXXXXXXX (10 digits) -> 9715XXXXXXXX
+    if (cleaned.startsWith('05') && cleaned.length === 10) {
+      cleaned = '971' + cleaned.slice(1);
+    } else if (cleaned.startsWith('0') && (cleaned.length === 10 || cleaned.length === 11)) {
+      cleaned = countryCode + cleaned.slice(1);
     } else if (cleaned.length === 10) {
-      cleaned = defaultCountry + cleaned;
+      cleaned = countryCode + cleaned;
     }
 
     if (cleaned.length < 10 || cleaned.length > 15) {

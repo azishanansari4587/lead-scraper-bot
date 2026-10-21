@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const { Lead, ScraperRun, OptOut } = require('../models');
 const logger = require('../config/logger');
 const { generateDedupeKey, stringSimilarity, mergeLeadData } = require('../services/dedupe');
@@ -63,29 +64,26 @@ class ScraperManager {
   }
 
   /**
-   * Checks if lead is present in the OptOut suppression list
+   * Checks if lead is present in the OptOut suppression list (batched query)
    * @param {object} lead
    * @returns {Promise<boolean>}
    */
   async isOptedOut(lead) {
-    const checks = [];
-    if (lead.email) checks.push({ type: 'email', value: lead.email });
-    if (lead.email2) checks.push({ type: 'email', value: lead.email2 });
-    if (lead.domain) checks.push({ type: 'domain', value: lead.domain });
-    if (lead.phone) checks.push({ type: 'phone', value: lead.phone });
+    const orConditions = [];
+    if (lead.email) orConditions.push({ type: 'email', value: lead.email });
+    if (lead.email2) orConditions.push({ type: 'email', value: lead.email2 });
+    if (lead.domain) orConditions.push({ type: 'domain', value: lead.domain });
+    if (lead.phone) orConditions.push({ type: 'phone', value: lead.phone });
 
-    if (checks.length === 0) return false;
+    if (orConditions.length === 0) return false;
 
-    for (const check of checks) {
-      const match = await OptOut.findOne({
-        where: {
-          type: check.type,
-          value: check.value
-        }
-      });
-      if (match) return true;
-    }
-    return false;
+    const match = await OptOut.findOne({
+      where: {
+        [Op.or]: orConditions
+      },
+      attributes: ['id']
+    });
+    return !!match;
   }
 
   /**
@@ -140,13 +138,14 @@ class ScraperManager {
           userId,
           city: rawLead.city
         },
+        attributes: ['id', 'businessName', 'userId', 'dedupeKey', 'city'],
         limit: 50
       });
 
       for (const candidate of candidates) {
         const similarity = stringSimilarity(candidate.businessName, rawLead.businessName);
         if (similarity >= 0.88) {
-          existingLead = candidate;
+          existingLead = await Lead.findByPk(candidate.id);
           logger.debug({ candidate: candidate.businessName, newName: rawLead.businessName, similarity }, 'Fuzzy match found');
           break;
         }
@@ -241,6 +240,9 @@ class ScraperManager {
     let errorCount = 0;
     let errorMessage = null;
 
+    scraper.lastError = null;
+    scraper.isBlocked = false;
+
     try {
       const rawLeads = await scraper.scrape({
         keyword,
@@ -281,7 +283,10 @@ class ScraperManager {
       const durationMs = Date.now() - startTime;
       let status = foundCount > 0 ? 'ok' : 'empty';
       if (foundCount === 0) {
-        if (scraper.lastError) {
+        if (scraper.isBlocked) {
+          status = 'blocked';
+          errorMessage = scraper.lastError || `Scraper engine '${platform}' was blocked by anti-bot challenge`;
+        } else if (scraper.lastError) {
           status = 'error';
           errorMessage = scraper.lastError;
         } else if (!errorMessage) {
@@ -289,6 +294,7 @@ class ScraperManager {
         }
       }
       scraper.lastError = null;
+      scraper.isBlocked = false;
 
       await runLog.update({
         status,
@@ -316,7 +322,7 @@ class ScraperManager {
     } catch (err) {
       const durationMs = Date.now() - startTime;
       errorMessage = err.message;
-      const isBlocked = /blocked|captcha|403|cloudflare|perimeterx/i.test(errorMessage);
+      const isBlocked = /blocked|captcha|403|cloudflare|perimeterx|challenge/i.test(errorMessage) || scraper.isBlocked;
       const status = isBlocked ? 'blocked' : 'error';
 
       await runLog.update({
@@ -341,6 +347,132 @@ class ScraperManager {
         duplicateCount,
         errorCount: errorCount + 1,
         durationMs
+      };
+    }
+  }
+
+  /**
+   * Runs all enabled scrapers for a single query and aggregates per-engine results
+   */
+  async runAllScrapers({
+    userId,
+    keyword,
+    leadType = 'rug_retailer',
+    country = 'UAE',
+    state = null,
+    city = 'Dubai',
+    enrichWebsites = false,
+    onProgress
+  }) {
+    const enabledPlatforms = Array.from(this.scrapers.entries())
+      .filter(([_, s]) => s.enabled)
+      .map(([name]) => name);
+
+    logger.info({ count: enabledPlatforms.length, platforms: enabledPlatforms }, 'Running all enabled scraper engines...');
+
+    const engineResults = [];
+    let totalFound = 0;
+    let totalNew = 0;
+    let totalDuplicates = 0;
+
+    for (const platform of enabledPlatforms) {
+      try {
+        const result = await this.runScraper({
+          userId,
+          platform,
+          keyword,
+          leadType,
+          country,
+          state,
+          city,
+          enrichWebsites,
+          onProgress
+        });
+        engineResults.push(result);
+        totalFound += result.count ?? result.foundCount ?? 0;
+        totalNew += result.newCount ?? 0;
+        totalDuplicates += result.duplicateCount ?? 0;
+      } catch (err) {
+        engineResults.push({
+          platform,
+          status: 'error',
+          count: 0,
+          errorMessage: err.message,
+          foundCount: 0,
+          newCount: 0,
+          duplicateCount: 0,
+          errorCount: 1,
+          durationMs: 0
+        });
+      }
+    }
+
+    return {
+      isMultiEngine: true,
+      totalFound,
+      totalNew,
+      totalDuplicates,
+      results: engineResults
+    };
+  }
+
+  /**
+   * Tests a single scraper engine connectivity and returns diagnostic status
+   */
+  async testScraper(platform, options = {}) {
+    const scraper = this.scrapers.get(platform);
+    if (!scraper) {
+      return { platform, status: 'error', errorMessage: `Unknown scraper platform: ${platform}`, count: 0, durationMs: 0 };
+    }
+
+    const startTime = Date.now();
+    scraper.lastError = null;
+    scraper.isBlocked = false;
+
+    try {
+      const sample = await scraper.scrape({
+        keyword: options.keyword || 'rug store',
+        country: options.country || 'UAE',
+        city: options.city || 'Dubai',
+        leadType: options.leadType || 'rug_retailer'
+      });
+
+      const durationMs = Date.now() - startTime;
+      const count = sample.length;
+      let status = count > 0 ? 'ok' : 'empty';
+      let errorMessage = null;
+
+      if (count === 0) {
+        if (scraper.isBlocked) {
+          status = 'blocked';
+          errorMessage = scraper.lastError || `Engine ${platform} is blocked by anti-bot challenge`;
+        } else if (scraper.lastError) {
+          status = 'error';
+          errorMessage = scraper.lastError;
+        } else {
+          status = 'empty';
+          errorMessage = `Engine ${platform} returned 0 results for test query`;
+        }
+      }
+
+      return {
+        platform,
+        status,
+        count,
+        durationMs,
+        errorMessage,
+        sampleLead: count > 0 ? { businessName: sample[0].businessName, phone: sample[0].phone, city: sample[0].city } : null
+      };
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      const isBlocked = /blocked|captcha|403|cloudflare|perimeterx|challenge/i.test(err.message) || scraper.isBlocked;
+      return {
+        platform,
+        status: isBlocked ? 'blocked' : 'error',
+        count: 0,
+        durationMs,
+        errorMessage: err.message,
+        sampleLead: null
       };
     }
   }

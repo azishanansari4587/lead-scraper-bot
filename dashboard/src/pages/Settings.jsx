@@ -168,7 +168,7 @@ export default function Settings() {
               <span style={{ color: 'var(--text-muted)' }}>Google Places API Key</span>
               {settings?.googlePlacesApiKeyConfigured ? (
                 <span className="badge badge-score-high">
-                  Active ({settings.googlePlacesApiKeyMasked})
+                  Configured (Active)
                 </span>
               ) : (
                 <span className="badge badge-score-low">Unset (Optional)</span>

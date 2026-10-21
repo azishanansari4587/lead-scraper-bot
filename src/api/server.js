@@ -28,22 +28,24 @@ const dashboardOrigins = (process.env.DASHBOARD_URL || env.DASHBOARD_URL || '')
 const defaultOrigins = ['http://localhost:5173', 'http://localhost:5000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5000'];
 const allowedCorsOrigins = Array.from(new Set([...configuredOrigins, ...dashboardOrigins, ...defaultOrigins]));
 
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+  if (allowedCorsOrigins.includes('*')) return true;
+  if (allowedCorsOrigins.includes(origin)) return true;
+  return allowedCorsOrigins.some((allowed) => allowed && (origin === allowed || origin.startsWith(allowed)));
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (
-        allowedCorsOrigins.includes('*') ||
-        allowedCorsOrigins.includes(origin) ||
-        allowedCorsOrigins.some((allowed) => allowed && (origin === allowed || origin.startsWith(allowed)))
-      ) {
+      if (!origin || isOriginAllowed(origin)) {
         return callback(null, true);
       }
-      return callback(null, true);
+      return callback(new Error(`Origin '${origin}' not allowed by CORS`));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-bulk-auth', 'x-request-id']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-bulk-auth', 'x-request-id', 'x-test-user-id', 'x-test-role']
   })
 );
 app.use(hpp());
@@ -180,27 +182,77 @@ app.use((err, req, res, next) => {
 
 let server = null;
 const schedulerEngine = require('../services/scheduler/schedulerEngine');
+const runMigrations = require('../scripts/runMigrations');
 
 if (require.main === module) {
   env.validateStartupEnv();
-  const preferredPort = parseInt(process.env.PORT || env.PORT || '80', 10);
-  server = app.listen(preferredPort, async () => {
-    logger.info(`🚀 Lead Scraper API server listening on port ${preferredPort} [${env.NODE_ENV}]`);
-    try {
-      await schedulerEngine.start();
-    } catch (schedErr) {
-      logger.error({ schedErr: schedErr.message }, 'Failed to start scheduler engine on server boot');
-    }
-  });
 
-  server.on('error', (err) => {
-    if (err.code === 'EACCES' && preferredPort === 80) {
-      logger.warn('Port 80 requires elevated privileges, falling back to port 5000...');
-      server = app.listen(5000, async () => {
-        logger.info('🚀 Lead Scraper API server listening on fallback port 5000');
-      });
+  (async () => {
+    // Authenticate database connection with friendly error handling
+    try {
+      await sequelize.authenticate();
+      logger.info(`✅ Connected successfully to ${env.DB_DIALECT} database at ${env.DB_HOST || 'local'}:${env.DB_PORT || 3306}/${env.DB_NAME}`);
+    } catch (dbErr) {
+      const host = env.DB_HOST || '127.0.0.1';
+      const port = env.DB_PORT || 3306;
+      const user = env.DB_USER || 'unknown';
+      const dbName = env.DB_NAME || 'unknown';
+      const errMsg = (dbErr.original?.message || dbErr.message || '').toLowerCase();
+      const errCode = dbErr.original?.code || dbErr.code || '';
+
+      console.error('\n======================================================');
+      console.error('❌ REMOTE DATABASE CONNECTION FAILED');
+      console.error(`   Host: ${host} | Port: ${port} | Database: ${dbName} | User: ${user}`);
+      console.error('------------------------------------------------------');
+
+      if (errCode === 'ER_ACCESS_DENIED_ERROR' || errMsg.includes('access denied')) {
+        console.error('   Cause: Access Denied. Possible reasons:');
+        console.error('     1. Incorrect DB_USER or DB_PASS in .env.');
+        console.error('     2. Your public IP is not whitelisted in Hostinger Remote MySQL.');
+        console.error('        -> Go to Hostinger hPanel > Databases > Remote MySQL.');
+        console.error('        -> Add your IP or "%" (wildcard) for user ' + user + ' to allow connections.');
+      } else if (errCode === 'ETIMEDOUT' || errCode === 'ECONNREFUSED' || errMsg.includes('timed out') || errMsg.includes('connect')) {
+        console.error('   Cause: Connection Timed Out / Refused. Possible reasons:');
+        console.error(`     1. Host ${host}:${port} is unreachable or blocked by firewall.`);
+        console.error('     2. Your public IP is not whitelisted in Hostinger Remote MySQL.');
+      } else {
+        console.error(`   Cause: ${dbErr.message}`);
+      }
+      console.error('======================================================\n');
+      process.exit(1);
     }
-  });
+
+    // Run migrations automatically at boot before app.listen (idempotent)
+    try {
+      logger.info('Executing automated database migrations before starting server...');
+      await runMigrations();
+      logger.info('Database migrations verified and up to date.');
+    } catch (migErr) {
+      logger.error({ err: migErr.message }, 'DATABASE MIGRATION FAILED ON BOOT. Check schema permissions.');
+      process.exit(1);
+    }
+
+    const preferredPort = parseInt(process.env.PORT || env.PORT || '5000', 10);
+    const bindHost = process.env.HOST || env.HOST || '127.0.0.1';
+
+    server = app.listen(preferredPort, bindHost, async () => {
+      logger.info(`🚀 Lead Scraper API server listening on http://${bindHost}:${preferredPort} [${env.NODE_ENV}]`);
+      try {
+        await schedulerEngine.start();
+      } catch (schedErr) {
+        logger.error({ schedErr: schedErr.message }, 'Failed to start scheduler engine on server boot');
+      }
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EACCES' && preferredPort === 80) {
+        logger.warn('Port 80 requires elevated privileges, falling back to port 5000...');
+        server = app.listen(5000, bindHost, async () => {
+          logger.info(`🚀 Lead Scraper API server listening on fallback http://${bindHost}:5000`);
+        });
+      }
+    });
+  })();
 
   const gracefulShutdown = async (signal) => {
     logger.info(`Received ${signal}. Shutting down gracefully...`);

@@ -11,9 +11,9 @@ ENV DB_PATH=/data/app.db
 COPY package*.json ./
 COPY dashboard/package*.json ./dashboard/
 
-# Install root dependencies (production) and dashboard dependencies
+# Install root dependencies (production) and dashboard dependencies with npm ci
 RUN npm ci --omit=dev && \
-    (cd dashboard && npm install)
+    (cd dashboard && npm ci)
 
 # Copy application sources
 COPY src/ ./src
@@ -24,8 +24,15 @@ COPY .env.example ./
 # Build React + Vite Dashboard
 RUN (cd dashboard && npm run build)
 
-# Create persistent volume directories
-RUN mkdir -p /data /app/data
+# Create persistent volume directory and assign ownership to non-root playwright user
+RUN mkdir -p /data /app/data && \
+    chown -R pwuser:pwuser /data /app
+
+# Declare persistent volume for SQLite database storage
+VOLUME ["/data"]
+
+# Run as non-root user
+USER pwuser
 
 # Expose server port
 EXPOSE 5000

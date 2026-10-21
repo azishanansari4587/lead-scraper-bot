@@ -9,6 +9,7 @@ const env = require('../../config/env');
 const aiService = require('../../services/aiService');
 const scraperManager = require('../../scrapers/ScraperManager');
 const logger = require('../../config/logger');
+const { requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -44,13 +45,10 @@ router.get('/', (req, res, next) => {
         userId: req.userId,
         appVersion: '1.0.0',
         databaseDialect: env.DB_DIALECT,
-        geminiModel: 'gemini-1.5-flash',
+        geminiModel: process.env.GEMINI_MODEL || env.GEMINI_MODEL || 'gemini-1.5-flash',
         geminiStats,
         activeScrapers: scrapers,
         googlePlacesApiKeyConfigured: Boolean(activePlacesKey),
-        googlePlacesApiKeyMasked: activePlacesKey
-          ? `${activePlacesKey.slice(0, 6)}...${activePlacesKey.slice(-4)}`
-          : null,
         environment: env.NODE_ENV
       }
     });
@@ -59,7 +57,7 @@ router.get('/', (req, res, next) => {
   }
 });
 
-router.post('/api-keys', (req, res, next) => {
+router.post('/api-keys', requireAdmin, (req, res, next) => {
   try {
     const { googlePlacesApiKey } = req.body;
 

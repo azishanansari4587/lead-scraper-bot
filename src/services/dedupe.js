@@ -71,6 +71,7 @@ function normalizeDomain(urlOrDomain) {
 
 /**
  * Normalizes phone number to clean digit representation with optional leading '+'
+ * Properly normalizes UAE mobile numbers (05x... -> +9715x...)
  * @param {string} phone
  * @returns {string|null}
  */
@@ -81,8 +82,23 @@ function normalizePhone(phone) {
   const hasPlus = trimmed.startsWith('+');
 
   // Keep only digits
-  const digits = trimmed.replace(/\D/g, '');
+  let digits = trimmed.replace(/\D/g, '');
   if (!digits || digits.length < 6) return null;
+
+  // UAE local mobile normalization: 05XXXXXXXX (10 digits) -> +9715XXXXXXXX
+  if (digits.startsWith('05') && digits.length === 10) {
+    return `+971${digits.slice(1)}`;
+  }
+
+  // International 009715... -> +9715...
+  if (digits.startsWith('00971')) {
+    return `+${digits.slice(2)}`;
+  }
+
+  // Already prefixed with 971: 9715XXXXXXXX -> +9715XXXXXXXX
+  if (digits.startsWith('971') && digits.length >= 11) {
+    return `+${digits}`;
+  }
 
   return hasPlus ? `+${digits}` : digits;
 }

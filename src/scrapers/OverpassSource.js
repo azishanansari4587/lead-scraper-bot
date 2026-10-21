@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const axios = require('axios');
 const BaseScraper = require('./BaseScraper');
 const logger = require('../config/logger');
@@ -53,7 +51,7 @@ class OverpassSource extends BaseScraper {
 
   buildQuery(city, country, leadType) {
     const filters = this.getOsmFilters(leadType);
-    const targetArea = city || country;
+    const targetArea = (city || country || '').trim();
 
     const filterClauses = filters
       .map((f) => `${f}(area.searchArea);`)
@@ -61,7 +59,10 @@ class OverpassSource extends BaseScraper {
 
     return `
 [out:json][timeout:15];
-area["name"~"${targetArea}",i]->.searchArea;
+(
+  area["name"="${targetArea}"];
+  area["name:en"="${targetArea}"];
+)->.searchArea;
 (
   ${filterClauses}
 );
@@ -112,12 +113,18 @@ out center 40;
   }
 
   async scrape({ keyword, country, state, city, leadType }) {
+    this.lastError = null;
+    this.isBlocked = false;
+    const targetArea = city || country;
     logger.info({ city, country, leadType }, 'Starting Overpass OSM query...');
     const query = this.buildQuery(city, country, leadType);
 
+    let lastErrMsg = null;
+
     for (const endpoint of this.endpoints) {
       try {
-        const response = await axios.post(
+        const client = this.client || axios;
+        const response = await client.post(
           endpoint,
           `data=${encodeURIComponent(query)}`,
           {
@@ -129,34 +136,26 @@ out center 40;
           }
         );
 
-        if (response.data?.elements && response.data.elements.length > 0) {
-          const leads = this.parseElements(response.data.elements, { country, state, city, leadType });
+        const elements = response.data?.elements || [];
+        if (elements.length > 0) {
+          const leads = this.parseElements(elements, { country, state, city, leadType });
           logger.info({ found: leads.length, endpoint }, 'Overpass OSM scrape complete');
           return leads;
+        } else {
+          this.lastError = `Overpass returned 0 elements for ${leadType} in ${targetArea}`;
+          return [];
         }
       } catch (err) {
+        lastErrMsg = err.message;
+        const isBlocked = /403|blocked|rate|limit|too many/i.test(err.message);
+        if (isBlocked) {
+          this.isBlocked = true;
+        }
         logger.warn({ endpoint, err: err.message }, 'Overpass mirror request failed, trying next mirror');
       }
     }
 
-    // If external public Overpass servers are rate-limited or congested, load fallback fixtures
-    const fixturePath = path.resolve(process.cwd(), 'data/fixtures/overpass_sample.json');
-    if (fs.existsSync(fixturePath)) {
-      logger.info('Using offline/fallback OSM fixtures for query...');
-      try {
-        const sampleData = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
-        const matched = sampleData.filter((item) => {
-          if (leadType.includes('rug') || leadType.includes('retailer')) {
-            return item.tags?.shop === 'carpet';
-          }
-          return item.tags?.office === 'interior_design';
-        });
-        return this.parseElements(matched.length > 0 ? matched : sampleData, { country, state, city, leadType });
-      } catch (e) {
-        logger.debug('Could not read fixtures');
-      }
-    }
-
+    this.lastError = `All Overpass mirrors failed or timed out: ${lastErrMsg || 'No response'}`;
     return [];
   }
 }

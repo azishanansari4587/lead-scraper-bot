@@ -8,7 +8,7 @@ const Lead = sequelize.define('Lead', {
     primaryKey: true
   },
   userId: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(100),
     allowNull: false,
     index: true
   },
@@ -150,7 +150,7 @@ const Lead = sequelize.define('Lead', {
   },
   tags: {
     type: DataTypes.JSON,
-    defaultValue: []
+    defaultValue: () => []
   },
   lastContactedAt: {
     type: DataTypes.DATE,
@@ -161,7 +161,7 @@ const Lead = sequelize.define('Lead', {
     allowNull: true
   },
   dedupeKey: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(150),
     allowNull: false
   },
   firstSeenAt: {

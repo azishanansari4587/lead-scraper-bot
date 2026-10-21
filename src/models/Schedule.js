@@ -21,7 +21,7 @@ const Schedule = sequelize.define('Schedule', {
   },
   leadTypes: {
     type: DataTypes.JSON,
-    defaultValue: []
+    defaultValue: () => []
   },
   country: {
     type: DataTypes.STRING,

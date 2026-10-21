@@ -5,6 +5,7 @@ import {
   Sparkles,
   CheckCircle2,
   AlertTriangle,
+  XCircle,
   Globe2,
   Layers,
   Search,
@@ -34,19 +35,31 @@ const LEAD_TYPES = [
 ];
 
 const PLATFORM_LABELS = {
+  google_places: 'Google Places (Official Places API New)',
   google_maps: 'Google Maps (Web Stealth • Free)',
-  google_places: 'Google Places (Official API Key)',
+  yellowpages_uae: 'YellowPages UAE',
   overpass: 'OpenStreetMap Overpass (Global Tier 1)',
   indiamart: 'IndiaMart Directory',
   tradeindia: 'TradeIndia Directory',
   justdial: 'Justdial Directory',
-  yellowpages_uae: 'YellowPages UAE',
   yelp: 'Yelp Business Directory',
   yellowpages: 'YellowPages US',
   houzz: 'Houzz Professionals',
   europages: 'Europages EU Directory',
   alibaba: 'Alibaba Suppliers'
 };
+
+const NON_UAE_ENGINES = [
+  'overpass',
+  'indiamart',
+  'tradeindia',
+  'justdial',
+  'yelp',
+  'yellowpages',
+  'houzz',
+  'europages',
+  'alibaba'
+];
 
 const DEFAULT_SOURCES = Object.entries(PLATFORM_LABELS).map(([platform, name]) => ({
   platform,
@@ -61,7 +74,7 @@ export default function SearchScrape({ onNavigate }) {
   const [city, setCity] = useState('Dubai');
   const [leadType, setLeadType] = useState('rug_retailer');
   const [keyword, setKeyword] = useState('');
-  const [platform, setPlatform] = useState('overpass');
+  const [platform, setPlatform] = useState('google_places');
   const [enrichWebsites, setEnrichWebsites] = useState(true);
   const [sources, setSources] = useState(DEFAULT_SOURCES);
 
@@ -79,17 +92,29 @@ export default function SearchScrape({ onNavigate }) {
     if (cities.length > 0 && !cities.includes(city)) {
       setCity(cities[0]);
     }
+
+    // Default-disable non-UAE engines if country is UAE
+    if (country === 'UAE' && NON_UAE_ENGINES.includes(platform)) {
+      setPlatform('google_places');
+    }
   }, [country]);
 
   useEffect(() => {
-    api.getSources().then((data) => {
-      if (Array.isArray(data.sources) && data.sources.length > 0) {
-        setSources(data.sources);
-      }
-    }).catch(() => {});
+    loadSources();
   }, []);
 
-  async function handleLaunchScraper(e) {
+  async function loadSources() {
+    try {
+      const res = await api.getSources();
+      if (Array.isArray(res.sources) && res.sources.length > 0) {
+        setSources(res.sources);
+      }
+    } catch (err) {
+      console.warn('Using default sources catalog');
+    }
+  }
+
+  async function handleRunScrape(e) {
     e.preventDefault();
     setRunning(true);
     setRunResult(null);
@@ -98,15 +123,20 @@ export default function SearchScrape({ onNavigate }) {
     try {
       const res = await api.runScrape({
         platform,
+        keyword: keyword.trim() || undefined,
+        leadType,
         country,
         city,
-        leadType,
-        keyword: keyword.trim() || undefined,
         enrichWebsites
       });
-      setRunResult(res.result);
+
+      if (res.result) {
+        setRunResult(res.result);
+      } else {
+        setErrorMsg('Scraper finished without returning execution data.');
+      }
     } catch (err) {
-      setErrorMsg(err.message || 'Scraping run encountered an error.');
+      setErrorMsg(err.message || 'Scraper execution failed');
     } finally {
       setRunning(false);
     }
@@ -119,34 +149,46 @@ export default function SearchScrape({ onNavigate }) {
         name: presetName.trim(),
         country,
         city,
-        leadTypes: [leadType],
-        customKeyword: keyword.trim() || undefined
+        leadType,
+        source: platform,
+        keyword: keyword.trim() || null,
+        enrichWebsites
       });
       setShowPresetModal(false);
       setPresetName('');
       alert('Search preset saved successfully!');
     } catch (err) {
-      alert(`Failed to save preset: ${err.message}`);
+      alert(`Could not save preset: ${err.message}`);
     }
   }
 
   return (
     <div className="page-content">
-      {/* Search Configuration Card */}
+      {/* Header */}
       <div className="card">
         <div className="card-header">
-          <h2 className="card-title">
-            <SlidersHorizontal size={18} color="var(--gold-primary)" /> B2B Target Query Configuration
-          </h2>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => setShowPresetModal(true)}
-          >
-            <BookmarkPlus size={14} /> Save as Preset
-          </button>
+          <div>
+            <h2 className="card-title">
+              <Sparkles size={20} color="var(--gold-primary)" /> Live B2B Lead Generator
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px' }}>
+              Extract rug importers, luxury interior designers, and wholesale distributors globally with multi-engine intelligence.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setShowPresetModal(true)}
+              title="Save current search criteria as reusable preset"
+            >
+              <BookmarkPlus size={14} /> Save Filter Preset
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleLaunchScraper}>
+        {/* Search & Scrape Form */}
+        <form onSubmit={handleRunScrape}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '24px' }}>
             {/* Country Selector */}
             <div>
@@ -210,11 +252,15 @@ export default function SearchScrape({ onNavigate }) {
                 value={platform}
                 onChange={(e) => setPlatform(e.target.value)}
               >
-                {sources.map((s) => (
-                  <option key={s.platform} value={s.platform}>
-                    {PLATFORM_LABELS[s.platform] || s.name} {s.tier === 1 ? '★ Tier 1' : '• Directory'}
-                  </option>
-                ))}
+                <option value="all">⚡ All Enabled Engines (Multi-Engine Run)</option>
+                {sources.map((s) => {
+                  const isNonUae = country === 'UAE' && NON_UAE_ENGINES.includes(s.platform);
+                  return (
+                    <option key={s.platform} value={s.platform} disabled={isNonUae}>
+                      {PLATFORM_LABELS[s.platform] || s.name} {isNonUae ? '(Disabled for UAE)' : s.tier === 1 ? '★ Tier 1' : '• Directory'}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -249,27 +295,22 @@ export default function SearchScrape({ onNavigate }) {
             </div>
           </div>
 
-          {/* Action Row */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
+          {/* Action Button */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
             <button
               type="submit"
               className="btn btn-primary"
+              style={{ minWidth: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               disabled={running}
-              style={{ padding: '10px 24px', fontSize: '14px' }}
             >
-              {running ? (
-                <>Launching Stealth Scraper...</>
-              ) : (
-                <>
-                  <Play size={16} /> Execute Live Scraper
-                </>
-              )}
+              <Play size={16} fill="currentColor" />
+              {running ? 'Extracting Leads...' : platform === 'all' ? 'Run All Engines' : 'Start Scraping'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Progress / Result Banner */}
+      {/* Progress / Status Banners */}
       {running && (
         <div className="card" style={{ background: 'rgba(99, 102, 241, 0.08)', borderColor: 'var(--indigo)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -277,14 +318,70 @@ export default function SearchScrape({ onNavigate }) {
             <div>
               <h3 style={{ fontSize: '14px', color: '#FFF' }}>Scraping in progress...</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                Querying {platform} for {leadType} in {city}, {country}. Anti-bot stealth rotation and deduplication engine active.
+                Querying {platform === 'all' ? 'all active engines' : platform} for {leadType} in {city}, {country}. Anti-bot stealth rotation and deduplication active.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {runResult && (
+      {/* Multi-Engine Results Breakdown */}
+      {runResult && runResult.isMultiEngine && (
+        <div className="card" style={{ background: 'var(--bg-surface-elevated)', borderColor: 'var(--border-subtle)' }}>
+          <h3 style={{ fontSize: '16px', color: '#FFF', marginBottom: '6px' }}>Multi-Engine Extraction Summary</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+            Total Leads Found: <strong>{runResult.totalFound}</strong> • New: <strong>{runResult.totalNew}</strong> • Duplicates: <strong>{runResult.totalDuplicates}</strong>
+          </p>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table" style={{ width: '100%', fontSize: '13px' }}>
+              <thead>
+                <tr>
+                  <th>Engine</th>
+                  <th>Status</th>
+                  <th>Leads Found</th>
+                  <th>Details / Reason</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runResult.results.map((eng) => (
+                  <tr key={eng.platform}>
+                    <td style={{ fontWeight: 600 }}>{PLATFORM_LABELS[eng.platform] || eng.platform}</td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          eng.status === 'ok'
+                            ? 'badge-score-high'
+                            : eng.status === 'empty'
+                            ? 'badge-score-medium'
+                            : 'badge-score-low'
+                        }`}
+                      >
+                        {eng.status ? eng.status.toUpperCase() : 'UNKNOWN'}
+                      </span>
+                    </td>
+                    <td>{eng.count ?? eng.foundCount ?? 0}</td>
+                    <td style={{ maxWidth: '300px', wordBreak: 'break-word', color: 'var(--text-muted)', fontSize: '12px' }}>
+                      {eng.errorMessage || (eng.status === 'ok' ? 'Extracted successfully' : 'No details')}
+                    </td>
+                    <td>{eng.durationMs ? `${eng.durationMs}ms` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="btn btn-primary btn-sm" onClick={() => onNavigate('leads')}>
+              View in Leads CRM
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Single Engine - Green Completed Banner (ONLY on status === 'ok') */}
+      {runResult && !runResult.isMultiEngine && runResult.status === 'ok' && (
         <div className="card" style={{ background: 'rgba(16, 185, 129, 0.08)', borderColor: 'var(--emerald)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -292,7 +389,7 @@ export default function SearchScrape({ onNavigate }) {
               <div>
                 <h3 style={{ fontSize: '15px', color: '#FFF' }}>Scraper Run Completed!</h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '12.5px' }}>
-                  Found <strong>{runResult.foundCount}</strong> leads • Added <strong>{runResult.newCount}</strong> new • Detected <strong>{runResult.duplicateCount}</strong> duplicates in {runResult.durationMs}ms
+                  Found <strong>{runResult.foundCount ?? runResult.count ?? 0}</strong> leads • Added <strong>{runResult.newCount ?? 0}</strong> new • Detected <strong>{runResult.duplicateCount ?? 0}</strong> duplicates in {runResult.durationMs}ms
                 </p>
               </div>
             </div>
@@ -304,12 +401,44 @@ export default function SearchScrape({ onNavigate }) {
         </div>
       )}
 
+      {/* Single Engine - Amber Notice (on status === 'empty') */}
+      {runResult && !runResult.isMultiEngine && runResult.status === 'empty' && (
+        <div className="card" style={{ background: 'rgba(245, 158, 11, 0.08)', borderColor: 'var(--amber)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertTriangle size={24} color="var(--amber)" />
+            <div>
+              <h3 style={{ fontSize: '14.5px', color: '#FFF' }}>No Leads Returned (Empty)</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '12.5px', marginTop: '2px' }}>
+                {runResult.errorMessage || `No results returned by ${runResult.platform} for this query.`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single Engine - Red Warning (on status === 'error' or 'blocked') */}
+      {runResult && !runResult.isMultiEngine && (runResult.status === 'error' || runResult.status === 'blocked') && (
+        <div className="card" style={{ background: 'rgba(244, 63, 94, 0.08)', borderColor: 'var(--rose)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <XCircle size={24} color="var(--rose)" />
+            <div>
+              <h3 style={{ fontSize: '14.5px', color: '#FFF' }}>
+                {runResult.status === 'blocked' ? 'Scraper Blocked by Anti-Bot / CAPTCHA' : 'Scraper Execution Error'}
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '12.5px', marginTop: '2px' }}>
+                {runResult.errorMessage || 'The scraper engine encountered an issue while communicating with the data source.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {errorMsg && (
-        <div className="card" style={{ background: 'var(--rose-bg)', borderColor: 'var(--rose)' }}>
+        <div className="card" style={{ background: 'rgba(244, 63, 94, 0.08)', borderColor: 'var(--rose)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <AlertTriangle size={20} color="var(--rose)" />
             <div>
-              <h3 style={{ fontSize: '14px', color: '#FFF' }}>Scraping Notice</h3>
+              <h3 style={{ fontSize: '14px', color: '#FFF' }}>System Notice</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{errorMsg}</p>
             </div>
           </div>

@@ -22,10 +22,11 @@ let dailyUsageCount = 0;
 class AiService {
   constructor() {
     this.client = null;
+    this.modelName = process.env.GEMINI_MODEL || env.GEMINI_MODEL || 'gemini-1.5-flash';
     if (env.GEMINI_API_KEY && !env.GEMINI_API_KEY.includes('placeholder')) {
       try {
         const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-        this.client = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        this.client = genAI.getGenerativeModel({ model: this.modelName });
       } catch (err) {
         logger.warn({ err: err.message }, 'Failed to initialize Gemini AI client');
       }

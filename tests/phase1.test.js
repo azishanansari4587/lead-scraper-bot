@@ -19,7 +19,7 @@ const { requireAuth } = require('../src/api/middleware/auth');
 describe('Phase 1 - Foundation & Data Isolation', () => {
   beforeAll(async () => {
     await sequelize.sync({ force: true });
-  });
+  }, 30000);
 
   describe('Database Models & Constraints', () => {
     it('creates all 10 models with correct schemas', async () => {

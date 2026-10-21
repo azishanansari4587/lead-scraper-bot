@@ -34,7 +34,6 @@
     "@clerk/backend": "^1.24.1",
     "@google/generative-ai": "^0.21.0",
     "axios": "^1.7.9",
-    "better-sqlite3": "^13.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "exceljs": "^4.4.0",
@@ -56,8 +55,12 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "better-sqlite3": "^13.0.3",
     "nodemon": "^3.1.9",
     "supertest": "^7.0.0",
     "vitest": "^3.0.5"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
