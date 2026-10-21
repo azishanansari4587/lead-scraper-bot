@@ -194,12 +194,31 @@ class ScraperManager {
   }) {
     const scraper = this.scrapers.get(platform);
     if (!scraper) {
-      throw new Error(`Scraper platform '${platform}' is not registered`);
+      const errorMsg = `Scraper platform '${platform}' is not registered`;
+      logger.error({ platform }, errorMsg);
+      return {
+        status: 'error',
+        count: 0,
+        errorMessage: errorMsg,
+        foundCount: 0,
+        newCount: 0,
+        duplicateCount: 0,
+        errorCount: 1
+      };
     }
 
     if (!scraper.enabled) {
-      logger.warn({ platform }, 'Scraper is disabled. Skipping.');
-      return { status: 'disabled', foundCount: 0, newCount: 0, duplicateCount: 0, errorCount: 0 };
+      const errorMsg = `Scraper engine '${platform}' is disabled`;
+      logger.warn({ platform }, errorMsg);
+      return {
+        status: 'error',
+        count: 0,
+        errorMessage: errorMsg,
+        foundCount: 0,
+        newCount: 0,
+        duplicateCount: 0,
+        errorCount: 0
+      };
     }
 
     const startTime = Date.now();
@@ -260,20 +279,34 @@ class ScraperManager {
       }
 
       const durationMs = Date.now() - startTime;
+      let status = foundCount > 0 ? 'ok' : 'empty';
+      if (foundCount === 0) {
+        if (scraper.lastError) {
+          status = 'error';
+          errorMessage = scraper.lastError;
+        } else if (!errorMessage) {
+          errorMessage = `No leads found by ${platform} for query "${keyword || leadType}" in ${city}, ${country}`;
+        }
+      }
+      scraper.lastError = null;
+
       await runLog.update({
-        status: 'completed',
+        status,
         foundCount,
         newCount,
         duplicateCount,
         errorCount,
+        errorMessage: errorMessage || null,
         durationMs
       });
 
-      logger.info({ platform, foundCount, newCount, duplicateCount, durationMs }, 'Scraper run completed');
+      logger.info({ platform, status, foundCount, newCount, duplicateCount, durationMs }, 'Scraper run completed');
       return {
         runId: runLog.id,
         platform,
-        status: 'completed',
+        status,
+        count: foundCount,
+        errorMessage: errorMessage || null,
         foundCount,
         newCount,
         duplicateCount,
@@ -284,9 +317,10 @@ class ScraperManager {
       const durationMs = Date.now() - startTime;
       errorMessage = err.message;
       const isBlocked = /blocked|captcha|403|cloudflare|perimeterx/i.test(errorMessage);
+      const status = isBlocked ? 'blocked' : 'error';
 
       await runLog.update({
-        status: isBlocked ? 'blocked' : 'failed',
+        status,
         foundCount,
         newCount,
         duplicateCount,
@@ -295,16 +329,17 @@ class ScraperManager {
         durationMs
       });
 
-      logger.error({ err, platform }, 'Scraper run failed');
+      logger.error({ err: errorMessage, platform }, 'Scraper run failed');
       return {
         runId: runLog.id,
         platform,
-        status: isBlocked ? 'blocked' : 'failed',
+        status,
+        count: foundCount,
+        errorMessage,
         foundCount,
         newCount,
         duplicateCount,
         errorCount: errorCount + 1,
-        errorMessage,
         durationMs
       };
     }

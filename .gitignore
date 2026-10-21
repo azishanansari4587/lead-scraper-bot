@@ -15,9 +15,11 @@ data/attachments/
 data/debug/
 data/*.sqlite
 data/*.sqlite3
+data/*.db
 data/*.sqlite-journal
 *.sqlite
 *.sqlite3
+*.db
 *.pdf
 *.xlsx
 *.csv

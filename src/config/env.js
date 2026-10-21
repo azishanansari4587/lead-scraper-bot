@@ -13,13 +13,15 @@ const envSchema = z.object({
   APP_SECRET: z.string().min(16, 'APP_SECRET must be at least 16 characters').default('super-secure-default-app-secret-32-chars'),
   
   // Database settings
-  DB_DIALECT: z.enum(['mysql', 'sqlite', 'postgres', 'mariadb']).default('mysql'),
+  DATABASE_URL: z.string().optional().default(''),
+  DB_DIALECT: z.enum(['mysql', 'sqlite', 'postgres', 'mariadb']).default('sqlite'),
   DB_HOST: z.string().default('127.0.0.1'),
   DB_PORT: z.coerce.number().default(3306),
   DB_NAME: z.string().default('lead_scraper_db'),
   DB_USER: z.string().default('root'),
   DB_PASS: z.string().default(''),
-  DB_STORAGE: z.string().default('./data/dev.sqlite'),
+  DB_PATH: z.string().default('./data/app.db'),
+  DB_STORAGE: z.string().default('./data/app.db'),
   DB_LOGGING: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
 
   // Auth (Clerk)
@@ -83,5 +85,35 @@ try {
   }
   throw error;
 }
+
+parsedEnv.validateStartupEnv = function () {
+  const optionalChecks = [
+    { key: 'CLERK_SECRET_KEY', val: parsedEnv.CLERK_SECRET_KEY, desc: 'Clerk User Authentication' },
+    { key: 'GOOGLE_PLACES_API_KEY', val: parsedEnv.GOOGLE_PLACES_API_KEY, desc: 'Google Places Tier 1 Search API' },
+    { key: 'GEMINI_API_KEY', val: parsedEnv.GEMINI_API_KEY, desc: 'Google Gemini AI Lead Scoring & Outreach' },
+    { key: 'WHATSAPP_TOKEN', val: parsedEnv.WHATSAPP_TOKEN, desc: 'WhatsApp Cloud API Access Token' },
+    { key: 'WHATSAPP_PHONE_NUMBER_ID', val: parsedEnv.WHATSAPP_PHONE_NUMBER_ID, desc: 'WhatsApp Sender Phone ID' },
+    { key: 'CORS_ORIGIN', val: parsedEnv.CORS_ORIGIN, desc: 'CORS Allowed Origins' }
+  ];
+
+  const configured = [];
+  const missing = [];
+
+  for (const item of optionalChecks) {
+    if (!item.val || item.val.includes('placeholder')) {
+      missing.push(`${item.key} (${item.desc})`);
+    } else {
+      configured.push(item.key);
+    }
+  }
+
+  const logger = require('./logger');
+  if (configured.length > 0) {
+    logger.info({ configured }, '✅ Active configured integrations');
+  }
+  if (missing.length > 0) {
+    logger.warn({ missing }, '⚠️ Optional environment integrations missing (graceful fallback active, process will NOT exit)');
+  }
+};
 
 module.exports = parsedEnv;

@@ -14,23 +14,36 @@ const app = express();
 
 // Security middlewares
 app.use(helmet());
-const corsOrigins = [
-  ...((process.env.DASHBOARD_URL || env.DASHBOARD_URL || env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean)),
-  'http://localhost:5173',
-  'http://localhost:5000'
-];
+
+const configuredOrigins = (process.env.CORS_ORIGIN || env.CORS_ORIGIN || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const dashboardOrigins = (process.env.DASHBOARD_URL || env.DASHBOARD_URL || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const defaultOrigins = ['http://localhost:5173', 'http://localhost:5000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5000'];
+const allowedCorsOrigins = Array.from(new Set([...configuredOrigins, ...dashboardOrigins, ...defaultOrigins]));
 
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (corsOrigins.some((allowed) => allowed === '*' || origin === allowed || origin.startsWith(allowed))) {
+      if (
+        allowedCorsOrigins.includes('*') ||
+        allowedCorsOrigins.includes(origin) ||
+        allowedCorsOrigins.some((allowed) => allowed && (origin === allowed || origin.startsWith(allowed)))
+      ) {
         return callback(null, true);
       }
       return callback(null, true);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-bulk-auth', 'x-request-id']
   })
 );
 app.use(hpp());
@@ -63,26 +76,30 @@ app.use(globalLimiter);
 
 /**
  * Health check endpoint (Public - responds to both /health and /api/health)
+ * Does NOT depend on DB: returns status 200 with ok: true, db: "ok" | "error", uptime.
  */
 app.get(['/health', '/api/health'], async (req, res) => {
-  let dbStatus = 'connected';
+  let dbStatus = 'ok';
   try {
     await sequelize.authenticate();
   } catch (err) {
-    dbStatus = 'disconnected';
+    dbStatus = 'error';
+    logger.warn({ err: err.message }, 'Database health check probe failed');
   }
 
   const memory = process.memoryUsage();
 
-  res.status(dbStatus === 'connected' ? 200 : 503).json({
-    status: dbStatus === 'connected' ? 'ok' : 'degraded',
+  res.status(200).json({
+    ok: true,
+    status: 'ok',
+    db: dbStatus,
+    uptime: Math.floor(process.uptime()),
     service: 'lead-scraper-bot-api',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
-    uptime: Math.floor(process.uptime()),
     database: {
       dialect: env.DB_DIALECT,
-      status: dbStatus
+      status: dbStatus === 'ok' ? 'connected' : 'disconnected'
     },
     memory: {
       rssMb: Math.round(memory.rss / 1024 / 1024),
@@ -149,14 +166,14 @@ app.use((req, res) => {
 
 // Centralized Error Handler
 app.use((err, req, res, next) => {
-  logger.error({ reqId: req.id, err }, 'Unhandled request error');
+  logger.error({ reqId: req.id, err: err.message, stack: err.stack }, 'Unhandled request error');
 
   const statusCode = err.statusCode || 500;
   const isDev = env.NODE_ENV === 'development';
 
   res.status(statusCode).json({
     error: err.name || 'InternalServerError',
-    message: isDev ? err.message : 'An unexpected error occurred.',
+    message: isDev ? err.message : (err.message || 'An unexpected error occurred.'),
     ...(isDev && { stack: err.stack })
   });
 });
@@ -165,6 +182,7 @@ let server = null;
 const schedulerEngine = require('../services/scheduler/schedulerEngine');
 
 if (require.main === module) {
+  env.validateStartupEnv();
   const preferredPort = parseInt(process.env.PORT || env.PORT || '80', 10);
   server = app.listen(preferredPort, async () => {
     logger.info(`🚀 Lead Scraper API server listening on port ${preferredPort} [${env.NODE_ENV}]`);

@@ -1,76 +1,38 @@
-# ==============================================================
-# Knotiq Rugs Lead Scraper Bot - Production Multi-Stage Dockerfile
-# ==============================================================
-
-# --------------------------------------------------------------
-# Stage 1: Build React + Vite Dashboard
-# --------------------------------------------------------------
-FROM node:20-bookworm-slim AS dashboard-builder
-
-WORKDIR /build/dashboard
-
-# Copy dashboard dependencies
-COPY dashboard/package*.json ./
-RUN npm ci
-
-# Copy dashboard source and build static bundle
-COPY dashboard/ ./
-RUN npm run build
-
-# --------------------------------------------------------------
-# Stage 2: Production Server Runtime
-# --------------------------------------------------------------
-FROM node:20-bookworm-slim AS production
-
-# Install system dependencies (curl for healthcheck, dumb-init for process reaping, build tools for native addons)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
-    dumb-init \
-    python3 \
-    make \
-    g++ \
-    gcc \
-    libcap2-bin \
-    && setcap 'cap_net_bind_service=+ep' /usr/local/bin/node \
-    && rm -rf /var/lib/apt/lists/*
+FROM mcr.microsoft.com/playwright:v1.50.1-jammy
 
 WORKDIR /app
 
-# Set production environment
+# Environment defaults
 ENV NODE_ENV=production
-ENV PORT=80
-ENV DB_DIALECT=sqlite
-ENV DB_STORAGE=/app/data/dev.sqlite
+ENV PORT=5000
+ENV DB_PATH=/data/app.db
 
-# Copy root backend dependencies
+# Copy package descriptors
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+COPY dashboard/package*.json ./dashboard/
 
-# Copy application source code
+# Install root dependencies (production) and dashboard dependencies
+RUN npm ci --omit=dev && \
+    (cd dashboard && npm install)
+
+# Copy application sources
 COPY src/ ./src
 COPY migrations/ ./migrations
+COPY dashboard/ ./dashboard
 COPY .env.example ./
 
-# Copy built dashboard static bundle from Stage 1
-COPY --from=dashboard-builder /build/dashboard/dist ./dashboard/dist
+# Build React + Vite Dashboard
+RUN (cd dashboard && npm run build)
 
-# Prepare data and exports directory with non-root ownership
-RUN mkdir -p /app/data/exports /app/data/backups /app/data/debug \
-    && chown -R node:node /app
+# Create persistent volume directories
+RUN mkdir -p /data /app/data
 
-# Switch to non-root user for security
-USER node
+# Expose server port
+EXPOSE 5000
 
-# Expose HTTP API & Dashboard Port (Port 80 for Vercel/Production, 5000 for local)
-EXPOSE 80 5000
-
-# Healthcheck targeting public /health endpoint
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-80}/health || curl -f http://localhost:5000/health || exit 1
+  CMD curl -f http://localhost:${PORT:-5000}/health || exit 1
 
-# Process supervisor
-ENTRYPOINT ["dumb-init", "--"]
-
-# Launch API server (serves Express API + Dashboard SPA)
-CMD ["node", "src/api/server.js"]
+# Start the long-lived server process
+CMD ["npm", "start"]

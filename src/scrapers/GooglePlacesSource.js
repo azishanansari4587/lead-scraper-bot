@@ -10,6 +10,7 @@ class GooglePlacesSource extends BaseScraper {
   }
 
   get activeApiKey() {
+    if (this.apiKey === null) return null;
     return process.env.GOOGLE_PLACES_API_KEY || env.GOOGLE_PLACES_API_KEY || this.apiKey;
   }
 
@@ -19,9 +20,12 @@ class GooglePlacesSource extends BaseScraper {
   }
 
   async scrape({ keyword, country, state, city, leadType }) {
+    this.lastError = null;
     const apiKey = this.activeApiKey;
     if (!apiKey) {
-      logger.info('GOOGLE_PLACES_API_KEY not configured. Skipping Google Places API live search.');
+      const msg = 'GOOGLE_PLACES_API_KEY is not configured';
+      logger.warn(msg);
+      this.lastError = msg;
       return [];
     }
 
@@ -37,7 +41,9 @@ class GooglePlacesSource extends BaseScraper {
 
       const data = response.data;
       if (data.status === 'REQUEST_DENIED' || data.status === 'OVER_QUERY_LIMIT') {
-        logger.warn({ status: data.status, msg: data.error_message }, 'Google Places API status warning');
+        const errorMsg = data.error_message || `Google Places API request failed with status: ${data.status}`;
+        logger.warn({ status: data.status, msg: errorMsg }, 'Google Places API status warning');
+        this.lastError = errorMsg;
         return [];
       }
 
@@ -91,6 +97,7 @@ class GooglePlacesSource extends BaseScraper {
       return leads;
     } catch (err) {
       logger.error({ err: err.message }, 'Google Places scrape error');
+      this.lastError = err.message;
       return [];
     }
   }

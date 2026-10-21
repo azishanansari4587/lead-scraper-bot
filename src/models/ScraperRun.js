@@ -32,7 +32,7 @@ const ScraperRun = sequelize.define('ScraperRun', {
     allowNull: false
   },
   status: {
-    type: DataTypes.ENUM('running', 'completed', 'failed', 'blocked'),
+    type: DataTypes.ENUM('running', 'completed', 'failed', 'blocked', 'ok', 'error', 'empty'),
     defaultValue: 'running'
   },
   foundCount: {

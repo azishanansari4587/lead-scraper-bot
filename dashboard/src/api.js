@@ -2,7 +2,8 @@
  * API Client for Knotiq Rugs Lead Scraper
  */
 
-const BASE_URL = '/api';
+const API_HOST = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const BASE_URL = API_HOST ? `${API_HOST}/api` : '/api';
 
 async function fetchJson(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`;

@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: lead-scraper-bot
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /data/app.db
+      - key: PORT
+        value: "5000"
+      - key: DB_DIALECT
+        value: sqlite
+      - key: CORS_ORIGIN
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

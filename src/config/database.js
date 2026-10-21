@@ -6,9 +6,22 @@ const logger = require('./logger');
 
 let sequelize;
 
-if (env.DB_DIALECT === 'sqlite') {
+const databaseUrl = process.env.DATABASE_URL || env.DATABASE_URL;
+
+if (databaseUrl) {
+  logger.info('Connecting to hosted database via DATABASE_URL');
+  sequelize = new Sequelize(databaseUrl, {
+    logging: env.DB_LOGGING ? (msg) => logger.debug({ msg, context: 'sequelize' }) : false,
+    pool: {
+      max: 10,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
+    }
+  });
+} else if (env.DB_DIALECT === 'sqlite') {
   const isVercel = Boolean(process.env.VERCEL);
-  const targetStorage = isVercel ? '/tmp/dev.sqlite' : env.DB_STORAGE;
+  const targetStorage = process.env.DB_PATH || env.DB_PATH || (isVercel ? '/tmp/app.db' : env.DB_STORAGE) || './data/app.db';
   const storagePath = path.isAbsolute(targetStorage) ? targetStorage : path.resolve(process.cwd(), targetStorage);
   const dir = path.dirname(storagePath);
   if (!fs.existsSync(dir)) {

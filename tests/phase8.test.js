@@ -7,17 +7,14 @@ import runBackup from '../src/scripts/backup';
 describe('Phase 8: Security Pass, Docker & Documentation Verification', () => {
   const rootDir = path.resolve(__dirname, '..');
 
-  it('verifies Dockerfile structure, multi-stage build, and non-root execution', () => {
+  it('verifies Dockerfile structure, playwright base, and production readiness', () => {
     const dockerfilePath = path.join(rootDir, 'Dockerfile');
     expect(fs.existsSync(dockerfilePath)).toBe(true);
 
     const dockerfile = fs.readFileSync(dockerfilePath, 'utf8');
-    expect(dockerfile).toContain('FROM node:20-bookworm-slim AS dashboard-builder');
-    expect(dockerfile).toContain('FROM node:20-bookworm-slim AS production');
-    expect(dockerfile).toContain('COPY --from=dashboard-builder /build/dashboard/dist ./dashboard/dist');
-    expect(dockerfile).toContain('USER node');
+    expect(dockerfile).toContain('FROM mcr.microsoft.com/playwright:v1.50.1-jammy');
     expect(dockerfile).toContain('HEALTHCHECK');
-    expect(dockerfile).toContain('dumb-init');
+    expect(dockerfile).toContain('npm');
   });
 
   it('verifies .dockerignore properly excludes secrets, dependencies and database files', () => {
