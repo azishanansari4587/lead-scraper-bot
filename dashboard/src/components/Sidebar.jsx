@@ -31,7 +31,7 @@ export default function Sidebar({ activeTab, setActiveTab, geminiStats }) {
   return (
     <aside className="sidebar">
       <div className="brand-header">
-        <div className="brand-icon">K</div>
+        <img src="/favicon.png" alt="LSB" className="brand-icon" style={{ objectFit: 'cover' }} />
         <div>
           <div className="brand-name">KNOTIQ RUGS</div>
           <div className="brand-subtitle">Export Lead Engine</div>

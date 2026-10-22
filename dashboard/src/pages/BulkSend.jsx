@@ -11,6 +11,9 @@ import {
   Download,
   Lock,
   Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
   Database,
   FileSpreadsheet,
   StopCircle,
@@ -28,10 +31,13 @@ import { api } from '../api';
 export default function BulkSend() {
   // Auth state
   const [authPassword, setAuthPassword] = useState(
-    localStorage.getItem('bulk_auth_password') || 'knotiq2026'
+    localStorage.getItem('bulk_auth_password') || ''
   );
+  const [showPassword, setShowPassword] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Source selection: 'db' | 'upload'
@@ -76,22 +82,51 @@ export default function BulkSend() {
 
   // Initial authentication check & data load
   useEffect(() => {
-    checkAuth(authPassword);
+    const saved = localStorage.getItem('bulk_auth_password');
+    if (saved && saved.trim()) {
+      checkAuth(saved.trim());
+    } else {
+      setIsAuthenticated(false);
+      setShowPasswordModal(true);
+      setAuthError('');
+    }
   }, []);
 
   const checkAuth = async (pass) => {
+    const candidate = pass !== undefined ? pass : authPassword;
+    const trimmed = (candidate || '').trim();
+
+    if (!trimmed) {
+      setIsAuthenticated(false);
+      setShowPasswordModal(true);
+      setAuthError('Kripya apna BULK_PASSWORD enter karein (.env file mein configured hai).');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError('');
+    setAuthSuccess('');
+
     try {
-      if (pass) localStorage.setItem('bulk_auth_password', pass);
-      await api.verifyBulkAuth(pass);
+      await api.verifyBulkAuth(trimmed);
+      localStorage.setItem('bulk_auth_password', trimmed);
       setIsAuthenticated(true);
-      setShowPasswordModal(false);
+      setAuthSuccess('✅ Password verified! Bulk Send access granted.');
       setAuthError('');
       loadDbLeads();
       loadDailyStats();
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setAuthSuccess('');
+      }, 700);
     } catch (err) {
       setIsAuthenticated(false);
       setShowPasswordModal(true);
-      setAuthError('Authentication required. LocalTunnel par access ke liye BULK_PASSWORD daalein.');
+      const serverMsg = err.data?.message || err.message;
+      setAuthError(serverMsg ? `❌ ${serverMsg}` : '❌ Invalid BULK_PASSWORD. Please check your .env file.');
+      setAuthSuccess('');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -1158,48 +1193,131 @@ export default function BulkSend() {
             <h3 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Lock color="#f59e0b" size={18} /> Bulk Send Security Access
             </h3>
-            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px 0' }}>
-              LocalTunnel public link par secure rakhne ke liye Bulk Send password daalein (.env mein BULK_PASSWORD):
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px 0', lineHeight: '1.4' }}>
+              LocalTunnel public link aur API ko secure rakhne ke liye <code>BULK_PASSWORD</code> enter karein (jo <code>.env</code> file mein set hai):
             </p>
 
-            {authError && (
-              <div style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', marginBottom: '12px' }}>
-                {authError}
+            {authSuccess && (
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#10b981',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                padding: '10px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                marginBottom: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <CheckCircle2 size={16} />
+                <span>{authSuccess}</span>
               </div>
             )}
 
-            <input
-              type="password"
-              placeholder="Enter BULK_PASSWORD (default: knotiq2026)"
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') checkAuth(authPassword); }}
-              style={{
-                width: '100%',
+            {authError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
                 padding: '10px 12px',
                 borderRadius: '6px',
-                border: '1px solid #475569',
-                background: '#0f172a',
-                color: '#fff',
-                fontSize: '14px',
-                marginBottom: '16px'
-              }}
-            />
+                fontSize: '13px',
+                marginBottom: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <AlertTriangle size={16} />
+                <span>{authError}</span>
+              </div>
+            )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                onClick={() => checkAuth(authPassword)}
+            <div style={{ position: 'relative', marginBottom: '16px' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="BULK_PASSWORD daalein (.env)"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !authLoading) checkAuth(authPassword); }}
                 style={{
-                  background: 'var(--gold-primary, #d97706)',
-                  border: 'none',
-                  color: '#fff',
-                  padding: '9px 18px',
+                  width: '100%',
+                  padding: '10px 40px 10px 12px',
                   borderRadius: '6px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
+                  border: '1px solid #475569',
+                  background: '#0f172a',
+                  color: '#fff',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center'
                 }}
               >
-                Authenticate
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthPassword('');
+                  setAuthError('');
+                  localStorage.removeItem('bulk_auth_password');
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                Clear input
+              </button>
+
+              <button
+                onClick={() => checkAuth(authPassword)}
+                disabled={authLoading}
+                style={{
+                  background: authLoading ? '#92400e' : 'var(--gold-primary, #d97706)',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '9px 20px',
+                  borderRadius: '6px',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  cursor: authLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: authLoading ? 0.7 : 1
+                }}
+              >
+                {authLoading ? (
+                  <>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verifying...
+                  </>
+                ) : (
+                  'Authenticate'
+                )}
               </button>
             </div>
           </div>

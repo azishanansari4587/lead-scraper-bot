@@ -138,5 +138,8 @@ export const api = {
   getBulkStatus: (jobId) => fetchJson(`/bulk/status/${jobId}`),
   stopBulkJob: (jobId) => fetchJson(`/bulk/stop/${jobId}`, { method: 'POST' }),
   getBulkHistory: () => fetchJson('/bulk/history'),
-  verifyBulkAuth: (key) => fetchJson(`/bulk/verify-auth${key ? `?key=${encodeURIComponent(key)}` : ''}`)
+  verifyBulkAuth: (key) =>
+    fetchJson('/bulk/verify-auth', {
+      headers: key ? { 'x-bulk-auth': key } : {}
+    })
 };
