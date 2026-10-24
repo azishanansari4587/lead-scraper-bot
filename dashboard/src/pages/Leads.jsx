@@ -20,7 +20,8 @@ import {
   Paperclip,
   FileText,
   CheckCircle2,
-  Upload
+  Upload,
+  MessageSquare
 } from 'lucide-react';
 import { api } from '../api';
 
@@ -797,7 +798,7 @@ export default function Leads({ onExportRequested }) {
 
       {/* Lead Detail & Direct Outreach Drawer */}
       {selectedLead && (
-        <div className="drawer-overlay" onClick={() => setSelectedLead(null)}>
+        <div className="drawer-backdrop" onClick={() => setSelectedLead(null)}>
           <div className="drawer" onClick={(e) => e.stopPropagation()}>
             <div className="drawer-header">
               <div>
