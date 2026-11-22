@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knotiq Rugs — B2B Growth Engine Mindmap</title>
+  <style>
+    :root {
+      --bg-primary: #090D16;
+      --bg-secondary: #121A2D;
+      --bg-card: #172036;
+      --border-color: #263352;
+      --border-accent: rgba(245, 158, 11, 0.4);
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --gold-accent: #F59E0B;
+      --gold-glow: rgba(245, 158, 11, 0.2);
+      --purple-accent: #8B5CF6;
+      --emerald-accent: #10B981;
+      --rose-accent: #F43F5E;
+      --blue-accent: #38BDF8;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #F8FAFC;
+      --bg-secondary: #FFFFFF;
+      --bg-card: #F1F5F9;
+      --border-color: #CBD5E1;
+      --border-accent: rgba(217, 119, 6, 0.4);
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --gold-accent: #D97706;
+      --gold-glow: rgba(217, 119, 6, 0.15);
+      --purple-accent: #7C3AED;
+      --emerald-accent: #059669;
+      --rose-accent: #E11D48;
+      --blue-accent: #0284C7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      overflow-x: hidden;
+      line-height: 1.5;
+    }
+
+    /* Header Bar */
+    header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(8px);
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--gold-accent), #B45309);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #000;
+      font-size: 16px;
+    }
+
+    .brand-name {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-tag {
+      font-size: 11px;
+      color: var(--gold-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .search-box {
+      padding: 8px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-primary);
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+      width: 240px;
+      transition: all 0.2s;
+    }
+    .search-box:focus {
+      border-color: var(--gold-accent);
+      box-shadow: 0 0 0 2px var(--gold-glow);
+    }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-main);
+      transition: all 0.15s;
+    }
+    .btn:hover {
+      background: var(--border-color);
+    }
+    .btn-gold {
+      background: var(--gold-accent);
+      color: #000;
+      border: none;
+    }
+    .btn-gold:hover {
+      background: #D97706;
+      color: #FFF;
+    }
+
+    /* Container */
+    .app-container {
+      display: flex;
+      height: calc(100vh - 65px);
+      position: relative;
+    }
+
+    /* Mindmap Canvas */
+    .canvas-pane {
+      flex: 1;
+      overflow: auto;
+      padding: 40px;
+      scroll-behavior: smooth;
+    }
+
+    /* Mindmap Tree Layout */
+    .tree-root {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 1200px;
+    }
+
+    /* Central Hub Card */
+    .goal-center-card {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(18, 26, 45, 0.95));
+      border: 2px solid var(--gold-accent);
+      border-radius: 16px;
+      padding: 24px 32px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(245, 158, 11, 0.2);
+      max-width: 600px;
+      cursor: pointer;
+      margin-bottom: 40px;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .goal-center-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(245, 158, 11, 0.3);
+    }
+    .goal-center-card h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--gold-accent);
+      margin-bottom: 6px;
+    }
+    .goal-center-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .goal-center-card .metrics-row {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 14px;
+      font-size: 12px;
+    }
+    .goal-center-card .metric-pill {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 4px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    /* Branches Grid */
+    .branches-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 24px;
+      width: 100%;
+      max-width: 1500px;
+    }
+
+    .branch-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .branch-card:hover {
+      border-color: var(--border-accent);
+    }
+
+    .branch-header {
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      user-select: none;
+    }
+    .branch-header h3 {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .branch-header .branch-tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .nodes-list {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Action Leaf Node */
+    .action-node {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .action-node:hover {
+      border-color: var(--gold-accent);
+      background: rgba(245, 158, 11, 0.05);
+      transform: translateX(3px);
+    }
+    .action-node.completed {
+      opacity: 0.6;
+      border-color: var(--emerald-accent);
+    }
+    .action-node.completed .node-title {
+      text-decoration: line-through;
+    }
+
+    .node-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .node-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .node-check {
+      cursor: pointer;
+      width: 15px;
+      height: 15px;
+      accent-color: var(--emerald-accent);
+    }
+    .node-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .priority-badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.03em;
+    }
+    .p-must { background: rgba(245, 158, 11, 0.2); color: var(--gold-accent); border: 1px solid rgba(245, 158, 11, 0.4); }
+    .p-next { background: rgba(139, 92, 246, 0.2); color: #C084FC; border: 1px solid rgba(139, 92, 246, 0.4); }
+    .p-later { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid var(--border-color); }
+
+    .node-quick-stats {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .node-quick-stats span strong {
+      color: var(--text-main);
+    }
+
+    /* Side Drawer Details Pane */
+    .drawer-pane {
+      width: 450px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+      z-index: 200;
+    }
+    .drawer-pane.open {
+      transform: translateX(0);
+    }
+
+    .drawer-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .drawer-header h2 {
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .drawer-header .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 22px;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    .drawer-header .close-btn:hover { color: var(--text-main); }
+
+    .drawer-body {
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex: 1;
+    }
+
+    .detail-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .detail-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--gold-accent);
+    }
+    .detail-content {
+      font-size: 13px;
+      color: var(--text-main);
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 14px;
+      line-height: 1.6;
+    }
+    .detail-content ol, .detail-content ul {
+      padding-left: 20px;
+      margin-top: 4px;
+    }
+    .detail-content li {
+      margin-bottom: 4px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .meta-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .meta-box-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .meta-box-val {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-top: 2px;
+    }
+
+    /* Print styling */
+    @media print {
+      header, .controls-bar, .drawer-pane { display: none !important; }
+      body, .canvas-pane { background: #FFF !important; color: #000 !important; padding: 0 !important; }
+      .goal-center-card, .branch-card, .action-node { border-color: #999 !important; background: #FFF !important; color: #000 !important; }
+      .branches-grid { display: block !important; }
+      .branch-card { margin-bottom: 20px !important; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <div class="brand-title">
+      <div class="brand-logo">K</div>
+      <div>
+        <div class="brand-name">Knotiq Rugs Growth Engine</div>
+        <div class="brand-tag">Ajman Sales Office ⇄ Bhadohi Manufacturing Hub</div>
+      </div>
+    </div>
+
+    <div class="controls-bar">
+      <input type="text" id="searchInput" class="search-box" placeholder="🔍 Search nodes, actions, buyer types..." oninput="filterNodes(this.value)">
+      <button class="btn" onclick="toggleAllBranches(true)">Expand All</button>
+      <button class="btn" onclick="toggleAllBranches(false)">Collapse All</button>
+      <button class="btn" onclick="toggleTheme()">🌓 Theme</button>
+      <button class="btn btn-gold" onclick="window.print()">🖨️ Print Mindmap</button>
+    </div>
+  </header>
+
+  <!-- Main Canvas & Drawer View -->
+  <div class="app-container">
+    <div class="canvas-pane">
+      <div class="tree-root">
+
+        <!-- Central Goal Node -->
+        <div class="goal-center-card" onclick="openCentralGoal()">
+          <div style="font-size: 11px; font-weight: 700; color: var(--gold-accent); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;">
+            CENTRAL NORTH STAR
+          </div>
+          <h1>Target: 100,000 AED / Month in Closed B2B Rug Orders</h1>
+          <p>Scale Knotiq from cold scraping to 10–12 high-retention B2B accounts (Designers, Hotels, Showrooms) across UAE & GCC within 90–180 Days.</p>
+          <div class="metrics-row">
+            <div class="metric-pill">🎯 Goal: 100K AED/mo [Assumption]</div>
+            <div class="metric-pill">⏱️ Horizon: 90 Days</div>
+            <div class="metric-pill">🏢 Model: Ajman Sales + Bhadohi Looms</div>
+          </div>
+        </div>
+
+        <!-- 10 Primary Growth Branches -->
+        <div class="branches-grid" id="branchesGrid"></div>
+
+      </div>
+    </div>
+
+    <!-- Node Detail Slide Drawer -->
+    <div class="drawer-pane" id="detailDrawer">
+      <div class="drawer-header">
+        <div>
+          <span id="drawerBranchBadge" class="branch-tag" style="background: rgba(245, 158, 11, 0.2); color: var(--gold-accent); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">BRANCH</span>
+          <h2 id="drawerTitle" style="margin-top: 6px;">Action Node Details</h2>
+        </div>
+        <button class="close-btn" onclick="closeDrawer()">&times;</button>
+      </div>
+
+      <div class="drawer-body">
+        <div class="meta-grid">
+          <div class="meta-box">
+            <div class="meta-box-label">Priority</div>
+            <div id="drawerPriority" class="meta-box-val">—</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-box-label">Cadence / When</div>
+            <div id="drawerWhen" class="meta-box-val">—</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-box-label">Owner</div>
+            <div id="drawerOwner" class="meta-box-val">—</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-box-label">Target KPI</div>
+            <div id="drawerKpi" class="meta-box-val">—</div>
+          </div>
+        </div>
+
+        <div class="detail-group">
+          <div class="detail-label">🎯 WHY (Strategic Impact)</div>
+          <div id="drawerWhy" class="detail-content">Reason and revenue effect.</div>
+        </div>
+
+        <div class="detail-group">
+          <div class="detail-label">🛠️ HOW (Execution Steps)</div>
+          <div id="drawerHow" class="detail-content">Step by step operational playbook.</div>
+        </div>
+
+        <div class="meta-grid">
+          <div class="meta-box">
+            <div class="meta-box-label">Estimated Cost / Effort</div>
+            <div id="drawerCost" class="meta-box-val">—</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-box-label">Depends On</div>
+            <div id="drawerDepends" class="meta-box-val">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Complete Mindmap Data Structure
+    const MINDMAP_DATA = [
+      {
+        id: "sales_pipeline",
+        title: "1. Sales Pipeline & High-Conversion Closing",
+        tag: "Core Revenue",
+        color: "var(--gold-accent)",
+        nodes: [
+          {
+            id: "sp_1",
+            title: "VIP Interior Designer Sample Box Delivery",
+            priority: "must",
+            when: "Weekly (Every Tuesday & Thursday)",
+            owner: "Founder (Ajman)",
+            kpi: "10 physical swatch kits delivered / month; 40% lead-to-sample rate",
+            cost: "350 AED / month (swatch couriers & presentation boxes)",
+            depends: "Bhadohi 12x12 inch wool/silk swatch collection readiness",
+            why: "Interior designers never specify custom rugs from photos alone. Physical touch of 100% New Zealand wool and hand-spun bamboo silk converts cold leads into quotation-ready partners faster than any pitch.",
+            how: [
+              "Identify designers who replied or viewed WhatsApp catalog in Command Center.",
+              "Prepare a luxury Knotiq wooden/matte-black sample box with 6 wool/silk tufts and finish options.",
+              "Personally drop off or courier via Careem/Fetchr directly to the design studio in Dubai Design District (D3) or Al Quoz.",
+              "Include a personalized embossed specification card with designer's name and direct Ajman phone number."
+            ]
+          },
+          {
+            id: "sp_2",
+            title: "Rapid 4-Hour Project Quotation SLA",
+            priority: "must",
+            when: "Daily (Within 4 hours of receiving rug render/sizes)",
+            owner: "Founder + Bhadohi Costing Lead",
+            kpi: "100% quotes sent within 4 hours; 25% quote-to-order win rate",
+            cost: "0 AED (Standardized pricing matrix in Command Center)",
+            depends: "Standardized Cost-Per-Square-Meter Matrix",
+            why: "Commercial interior projects move fast. When a designer or contractor asks for a quote, the mill that responds first with clear specs and realistic delivery timelines wins the contract 70% of the time.",
+            how: [
+              "Receive floorplan, size requirements, and fiber specification from designer via WhatsApp.",
+              "Run calculation through Knotiq Costing Formula (Base FOB Bhadohi + Air/Sea Freight + 45% Gross Margin).",
+              "Generate a professional PDF quote including rendering swatch match, lead time (25 days), and incoterms (DDP Dubai Studio).",
+              "Send quotation via WhatsApp with a 45-second Loom video or voice note explaining yarn options."
+            ]
+          },
+          {
+            id: "sp_3",
+            title: "Post-Quotation 48-Hour Closing Call & Objection Handling",
+            priority: "must",
+            when: "Day 2 after quote submission (11:00 AM GST)",
+            owner: "Founder",
+            kpi: "80% quote follow-up rate; zero ghosted quotes after 7 days",
+            cost: "1.5 hours / week calling time",
+            depends: "Rapid 4-Hour Project Quotation SLA",
+            why: "Most B2B buyers compare 2-3 quotes. A phone call resolves budget pushbacks, yarn swaps (e.g., bamboo silk vs viscose), and delivery deadline concerns immediately.",
+            how: [
+              "Call the decision maker (Senior Interior Designer or Procurement Manager).",
+              "Ask: 'Did the pricing align with your client's fit-out budget, or would you like to review alternative yarn densities?'",
+              "If price is high: propose value-engineering (e.g. blend 70% wool / 30% silk instead of 100% botanical silk).",
+              "Offer production strike-off (1x1 ft sample) upon 50% deposit confirmation."
+            ]
+          },
+          {
+            id: "sp_4",
+            title: "Post-Installation Client Capture & Repeat Loop",
+            priority: "next",
+            when: "Within 48 hours of rug delivery on site",
+            owner: "Founder",
+            kpi: "30% repeat order rate within 90 days; 3 high-res client project photos",
+            cost: "50 AED (Careem site visit or coffee thank-you gift)",
+            depends: "On-time delivery to client site",
+            why: "Interior designers work on 4–8 villa/hospitality projects per year. Securing repeat specification turns a one-time 15,000 AED deal into an 80,000 AED annual account.",
+            how: [
+              "Visit site during rug installation to inspect placement, underlay, and nap direction.",
+              "Take professional iPhone photos/videos of the installed rug in the furnished room.",
+              "Send thank-you gift box with rug maintenance guide and a 10% credit voucher toward their next project.",
+              "Tag designer and design studio on LinkedIn and Instagram case studies."
+            ]
+          }
+        ]
+      },
+      {
+        id: "lead_generation",
+        title: "2. Precision B2B Lead Scraping & Segment Targeting",
+        tag: "Top of Funnel",
+        color: "var(--blue-accent)",
+        nodes: [
+          {
+            id: "lg_1",
+            title: "Hyper-Targeted High-End UAE Interior Designers Scraping",
+            priority: "must",
+            when: "Every Monday 08:30–10:00 AM GST",
+            owner: "Command Center Scraper",
+            kpi: "50 verified UAE interior designer leads added to CRM / week",
+            cost: "0 AED (Internal Scraper Engine)",
+            depends: "Google Places API & OSM Scrapers",
+            why: "Luxury villa residential designers in Dubai & Abu Dhabi have short decision cycles, high budgets (15K–40K AED per rug), and urgent custom size requirements.",
+            how: [
+              "Execute Command Center scraper for query 'Interior Design Studio' in Dubai (Business Bay, Al Quoz, D3, Jumeirah).",
+              "Deduplicate against existing CRM leads automatically.",
+              "Run automated email syntax & MX verification to discard bounces.",
+              "AI Classifier automatically categorizes as 'designer' with high fit score."
+            ]
+          },
+          {
+            id: "lg_2",
+            title: "GCC Hospitality & FF&E Procurement Director Scraping",
+            priority: "next",
+            when: "Bi-weekly Wednesdays",
+            owner: "Founder",
+            kpi: "20 verified Hotel Procurement & Fit-Out Contractor leads / week",
+            cost: "1.5 hours research / week",
+            depends: "Interior Designer scraping running stably",
+            why: "Hotels and serviced apartments order 50–300 bespoke rugs per contract (ballrooms, corridors, presidential suites) with deal values exceeding 100,000 AED.",
+            how: [
+              "Search directories (INDEX Dubai exhibitors, MEED, BNC Network, hospitality portals).",
+              "Target FF&E Managers, Project Directors, and Hospitality Purchasing heads in UAE, Riyadh, and Doha.",
+              "Enrich with phone numbers, WhatsApp, and office locations in Command Center.",
+              "Assign buyerType = 'hotel' in CRM with custom Day 1 hospitality pitch."
+            ]
+          },
+          {
+            id: "lg_3",
+            title: "Commercial Property Developers & Show-Villa Furnishers",
+            priority: "later",
+            when: "Monthly sprint (First week of month)",
+            owner: "Founder",
+            kpi: "10 high-value developer procurement contacts added / month",
+            cost: "2 hours / month",
+            depends: "Hospitality workflow established",
+            why: "Developers furnish 10–20 model show apartments per project. Standardized custom sizes ordered in sets of 5–10 pieces provide steady production volume for looms.",
+            how: [
+              "Identify active luxury residential developments in Dubai Hills, Palm Jumeirah, and Yas Island.",
+              "Locate turnkey fit-out contractors executing model villas.",
+              "Import to Command Center with buyerType = 'developer' and record in CRM."
+            ]
+          }
+        ]
+      },
+      {
+        id: "outreach_system",
+        title: "3. Multi-Touch Outreach & Day 1/4/7 Follow-Up Engine",
+        tag: "Conversion Engine",
+        color: "var(--emerald-accent)",
+        nodes: [
+          {
+            id: "os_1",
+            title: "Day 1 Direct WhatsApp Warm Introduction",
+            priority: "must",
+            when: "Daily (Monday to Friday, 10:00–12:00 GST)",
+            owner: "Founder via Command Center WhatsApp Queue",
+            kpi: "20 personalized WhatsApp dispatches / day; 25% reply rate",
+            cost: "0 AED (Direct WhatsApp Web link with wa.me)",
+            depends: "Day's scraped leads queue in Command Center",
+            why: "In UAE and the GCC, WhatsApp has a 95% open rate compared to 15% for cold email. Direct 1-on-1 WhatsApp messages initiate real conversations in minutes.",
+            how: [
+              "Open Command Center Today's Action Queue.",
+              "Review pre-rendered message for designer (e.g. 'Hi Sarah, saw your recent Palm Jumeirah villa fitout...').",
+              "Click wa.me link to launch direct chat.",
+              "Attach 1 high-resolution video of hand-shearing a custom wool/silk rug in Bhadohi loom.",
+              "Click 'Record Send' in CRM to automatically queue Day 4 and Day 7 follow-ups."
+            ]
+          },
+          {
+            id: "os_2",
+            title: "Day 4 Value-Add Catalog & Custom Case Study Follow-Up",
+            priority: "must",
+            when: "Daily (Automated Calendar reminders at 10:30 GST)",
+            owner: "Founder",
+            kpi: "100% pending Day 4 follow-ups cleared daily; 15% recovery replies",
+            cost: "30 minutes / day",
+            depends: "Day 1 send recorded in OutreachLog",
+            why: "Designers are busy on site. Day 4 follow-up provides a real proof point (recent luxury project video) instead of asking 'did you see my message?'.",
+            how: [
+              "Open Calendar 'Follow-ups to make' section in Command Center.",
+              "Send Day 4 WhatsApp template: 'Hi Sarah, sharing a quick look at a 100% New Zealand wool custom piece we just shipped from Bhadohi to an Emirates Hills villa.'",
+              "Include link to 2-page curated PDF swatch guide.",
+              "Log follow-up completed in CRM."
+            ]
+          },
+          {
+            id: "os_3",
+            title: "Day 7 Sample Swatch Box Offer ('Breakup' Follow-Up)",
+            priority: "must",
+            when: "Daily (Triggered automatically 6 days after Day 1)",
+            owner: "Founder",
+            kpi: "10% reply on Day 7 offering physical sample delivery",
+            cost: "20 minutes / day",
+            depends: "Day 4 completed without reply",
+            why: "The Day 7 message reduces friction by taking digital chat to a physical commitment: 'Can I drop off a free sample box for your materials library?'.",
+            how: [
+              "Send Day 7 template: 'I know you're in the middle of active fit-outs. We have a set of 8 luxury hand-tufted sample swatches heading to Al Quoz today. Would you like me to drop one off for your material library? No obligations.'",
+              "If they reply 'Yes', mark status = 'replied' in CRM, which automatically cancels remaining nudges and opens sample delivery flow."
+            ]
+          },
+          {
+            id: "os_4",
+            title: "Phone Call Power-Hour for Unresponsive High-Value Leads",
+            priority: "next",
+            when: "Wednesdays & Thursdays (14:30–15:30 GST)",
+            owner: "Founder",
+            kpi: "15 cold/warm calls / session; 3 direct swatch drop-off appointments",
+            cost: "2 hours calling / week",
+            depends: "Call script loaded in Command Center",
+            why: "Senior partners and studio founders often miss text messages. A 90-second polite call directly to studio reception establishes credibility as a direct mill manufacturer.",
+            how: [
+              "Filter Command Center leads by status = 'contacted', priority = 'hot/warm'.",
+              "Dial number using the verified studio line.",
+              "Follow Knotiq Designer Cold Call Script: 'Hello, this is [Name] from Knotiq Rugs. We manufacture custom hand-knotted and tufted carpets directly in Bhadohi. May I speak with the materials coordinator or head designer regarding custom rug sampling for upcoming projects?'",
+              "Log call in Command Center Call Drawer with outcome (connected, callback, no_answer)."
+            ]
+          }
+        ]
+      },
+      {
+        id: "marketing_brand",
+        title: "4. Brand Authority, Artisan Content & Material Proof",
+        tag: "Trust & Authority",
+        color: "var(--purple-accent)",
+        nodes: [
+          {
+            id: "mb_1",
+            title: "Artisan Loom & Weaving Process Reels on Instagram",
+            priority: "must",
+            when: "3x Weekly (Monday, Wednesday, Friday at 18:00 GST)",
+            owner: "Founder + Bhadohi Factory Videographer",
+            kpi: "3 reels / week; 2,000+ views / reel; 5 inbound designer DMs / month",
+            cost: "100 AED / month for mobile tripod/lights at Bhadohi looms",
+            depends: "High-resolution video clips sent weekly from Bhadohi",
+            why: "Designers care deeply about authentic provenance, ethical craft, and handmade texture. Raw loom footage proves Knotiq is a real direct manufacturer, not a middleman trader.",
+            how: [
+              "Receive raw 4K smartphone footage from Bhadohi loom master (hand-tufting gun action, hand-carving embossed borders, natural pot dyeing).",
+              "Add aesthetic artisan music, minimal captions ('Pure New Zealand wool hand-sheared in Bhadohi for a Dubai penthouse').",
+              "Post to Instagram and tag location as 'Dubai Design District' or 'Downtown Dubai'.",
+              "Record in Command Center Content Calendar with live metrics."
+            ]
+          },
+          {
+            id: "mb_2",
+            title: "B2B Case Studies & Specification Guides on LinkedIn",
+            priority: "must",
+            when: "Weekly (Every Tuesday morning 08:30 GST)",
+            owner: "Founder",
+            kpi: "1 detailed case study post / week; 15 designer profile views / post",
+            cost: "1 hour / week writing time",
+            depends: "Installed project photos or yarn testing data",
+            why: "LinkedIn connects directly with FF&E procurement directors, fit-out contractors, and commercial architects who control 100K+ AED hotel contracts.",
+            how: [
+              "Draft post detailing technical rug specifications (e.g. 'Why commercial hotel lobbies require 4.5kg/sqm 80/20 wool-nylon blends instead of 100% viscose').",
+              "Highlight cost-savings of direct-from-mill procurement compared to retail traders.",
+              "Include call-to-action: 'DM for physical swatch box delivery in Dubai & Abu Dhabi'.",
+              "Engage with 10 Dubai interior design firms in the comments."
+            ]
+          },
+          {
+            id: "mb_3",
+            title: "Luxury 2-Page Digital Lookbook & Swatch Spec Sheet",
+            priority: "must",
+            when: "One-time build; monthly refresh",
+            owner: "Founder",
+            kpi: "1 Master PDF Lookbook (< 5MB) ready to send via WhatsApp",
+            cost: "0 AED (Canva or Figma)",
+            depends: "10 clean rug photos with white/architectural backgrounds",
+            why: "Heavy 50MB PDFs bounce or fail to download on WhatsApp. A clean, lightweight 2-page Lookbook highlights core textures (Hand-tufted cut pile, loop pile, viscose luster, Berber flatweaves) immediately.",
+            how: [
+              "Create 2-page layout in Canva: Page 1 = Knotiq Story & Loom capabilities; Page 2 = 6 core textures, wool grades, and UAE lead times (21–28 days).",
+              "Export optimized PDF under 4MB for instant WhatsApp delivery.",
+              "Save link in Command Center for 1-click message insertion."
+            ]
+          }
+        ]
+      },
+      {
+        id: "google_presence",
+        title: "5. Google Business Profile, Local SEO & Discovery",
+        tag: "Inbound Demand",
+        color: "var(--blue-accent)",
+        nodes: [
+          {
+            id: "gp_1",
+            title: "Google Business Profile Optimization (Ajman & Dubai Region)",
+            priority: "must",
+            when: "Week 1 setup; weekly post updates",
+            owner: "Founder",
+            kpi: "Rank in Top 3 for 'Handmade Rug Manufacturer UAE' / 'Custom Carpet Supplier Ajman'",
+            cost: "0 AED",
+            depends: "Verified Ajman office location",
+            why: "Procurement agents and homeowners search 'custom rug manufacturer near me' when they have active budgets. A verified Google profile provides massive local credibility.",
+            how: [
+              "Complete Google Business Profile for Knotiq Rugs with categories 'Carpet Manufacturer', 'Interior Designer Supply Store'.",
+              "Upload 20 high-res photos of looms, finished rugs, and sample swatches.",
+              "Add detailed description highlighting: 'Direct Indian manufacturer with sales office in Ajman. Hand-knotted & hand-tufted carpets for villas, hotels, and designers.'",
+              "Publish weekly updates with product images and direct WhatsApp chat links."
+            ]
+          },
+          {
+            id: "gp_2",
+            title: "Client 5-Star Review Acquisition Ritual",
+            priority: "next",
+            when: "Triggered on every completed order",
+            owner: "Founder",
+            kpi: "Accumulate 15+ 5-star Google reviews from verified UAE designers/clients within 90 days",
+            cost: "0 AED",
+            depends: "Delivered client orders",
+            why: "Social proof on Google eliminates perceived risk for new luxury clients placing high-value custom deposits.",
+            how: [
+              "Send personalized WhatsApp link 3 days post-installation: 'Sarah, we loved how the dining room rug turned out. Could you share a quick 2-line Google review about our craftsmanship and delivery speed?'",
+              "Offer a complimentary customized wool welcome mat with their family monogram or studio initials upon review completion."
+            ]
+          }
+        ]
+      },
+      {
+        id: "product_samples",
+        title: "6. Product Range, Sample Kits & MOQ Tiering",
+        tag: "Offer Architecture",
+        color: "var(--gold-accent)",
+        nodes: [
+          {
+            id: "ps_1",
+            title: "Standardized 12x12 Inch Swatch Kit Production in Bhadohi",
+            priority: "must",
+            when: "Sprint 1 (Week 1–2)",
+            owner: "Bhadohi Production Lead",
+            kpi: "30 complete swatch boxes manufactured and stocked in Ajman",
+            cost: "1,200 AED (Wool materials & fabric edging for 180 swatches)",
+            depends: "Yarn inventory in Bhadohi",
+            why: "Without physical swatches in Ajman, closing custom deals takes 3 weeks waiting for courier from India. Having 30 swatch kits in Ajman enables same-day delivery to any designer in Dubai.",
+            how: [
+              "Weave 6 core standard samples: (1) 100% NZ Wool Hand-Tufted Cut Pile, (2) Wool + Bamboo Silk Blend, (3) High-Low Texture Carved Loop, (4) Pure Hand-Knotted 100 Knots, (5) Distressed Vintage Wash, (6) Pet-Friendly Solution-Dyed Nylon.",
+              "Edge with neat cotton binding and hot-stamp Knotiq woven label on the reverse with fiber specs.",
+              "Air-freight 30 sets from Bhadohi to Ajman office."
+            ]
+          },
+          {
+            id: "ps_2",
+            title: "Clear B2B MOQ & Custom Sizing Matrix",
+            priority: "must",
+            when: "Immediate (Day 1)",
+            owner: "Founder",
+            kpi: "Published B2B terms sheet eliminating client budget confusion",
+            cost: "0 AED",
+            depends: "Costing model completion",
+            why: "Ambiguity around minimum order quantity scares away smaller residential designers or causes quotes for unprofitable tiny mats.",
+            how: [
+              "Establish clear terms: Custom Hand-Tufted MOQ = 4 sqm (approx 2m x 2m villa minimum).",
+              "Hospitality / Hotel MOQ = 50 sqm (custom dyes and bulk fiber discount).",
+              "Hand-Knotted Luxury MOQ = 6 sqm (artisan heirloom pieces).",
+              "Sample Policy: 30x30 cm strike-off free with 50% confirmed production deposit; 300 AED standalone (credited back against first order)."
+            ]
+          }
+        ]
+      },
+      {
+        id: "production_quality",
+        title: "7. Bhadohi Production Capacity, Lead Times & QC Protocol",
+        tag: "Manufacturing Engine",
+        color: "var(--rose-accent)",
+        nodes: [
+          {
+            id: "pq_1",
+            title: "Bhadohi 21-Day Custom Hand-Tufted Fast Track Protocol",
+            priority: "must",
+            when: "Standard operating rhythm per order",
+            owner: "Bhadohi Loom Master",
+            kpi: "95% of orders ready for export dispatch within 21 calendar days",
+            cost: "0 AED (Process alignment)",
+            depends: "Design approval & yarn dyeing schedule",
+            why: "Most European and Turkish importers take 8–12 weeks. Guaranteeing a 21-day production timeline makes Knotiq the fastest custom supplier in the UAE market.",
+            how: [
+              "Day 1–3: Computerized graph/stencil printing and wool pot-dyeing matching Pantone TCX codes.",
+              "Day 4–12: Hand-tufting weaving on vertical frame looms.",
+              "Day 13–16: Latex backing application, secondary scrim drying, and primary shearing.",
+              "Day 17–20: Hand-embossing, edge binding, washing, and beveling.",
+              "Day 21: Master Weaver QC inspection and waterproof export wrapping."
+            ]
+          },
+          {
+            id: "pq_2",
+            title: "5-Point Video Quality Control (QC) Sign-Off Before Shipment",
+            priority: "must",
+            when: "Every rug completion before export packing",
+            owner: "Bhadohi QC Lead",
+            kpi: "Zero client quality rejections; 100% video approvals prior to dispatch",
+            cost: "20 minutes inspection per rug",
+            depends: "Finished rug on flat inspection floor",
+            why: "Returning an incorrect or flawed rug from UAE to India is financially ruinous. Pre-shipment client video approval guarantees zero disputes upon delivery.",
+            how: [
+              "Spread rug flat in Bhadohi natural daylight inspection room.",
+              "Check: (1) Dimensional accuracy within +/- 1 inch, (2) Pile height gauge check, (3) Color match against approved swatch under daylight, (4) Backing latex adhesion test, (5) Odor and moisture zero-level.",
+              "Record a 30-second 4K video showing pile sheen from both directions.",
+              "Send to Dubai client via WhatsApp for final green light before boxing."
+            ]
+          }
+        ]
+      },
+      {
+        id: "shipping_finance",
+        title: "8. Shipping, Export Logistics, Pricing & Cash Flow",
+        tag: "Fulfillment & Cash",
+        color: "var(--emerald-accent)",
+        nodes: [
+          {
+            id: "sf_1",
+            title: "Optimized Air vs Sea Freight Logistics Channels to DXB",
+            priority: "must",
+            when: "Determined per order volume",
+            owner: "Founder + Bhadohi Dispatcher",
+            kpi: "Air delivery in 4 days @ 25 AED/kg; Sea LCL in 14 days @ 7 AED/kg",
+            cost: "Included in client DDP quote",
+            depends: "Partnership with cargo freight forwarder (DHL/FedEx/Varanasi Cargo)",
+            why: "Freight costs can destroy 15% of margin if miscalculated. Providing clear DDP (Delivered Duty Paid to client door) eliminates customs headaches for UAE designers.",
+            how: [
+              "For single residential rugs (< 50 kg): Ship Air Express Varanasi (VNS) -> Sharjah (SHJ) / Dubai (DXB) in 3–5 transit days.",
+              "For commercial orders (> 200 kg): Group into consolidated Sea Freight LCL from Nhava Sheva to Jebel Ali Port (12–14 days transit).",
+              "Maintain Ajman Chamber of Commerce customs code to clear goods seamlessly with 5% UAE customs duty and 5% VAT."
+            ]
+          },
+          {
+            id: "sf_2",
+            title: "Strict 50/50 B2B Payment Terms & Milestone Cash Buffering",
+            priority: "must",
+            when: "On every single client contract",
+            owner: "Founder",
+            kpi: "Zero unpaid bad debts; 100% material costs funded by client advance",
+            cost: "0 AED",
+            depends: "Clear terms on official quotation",
+            why: "Custom handmade rugs cannot be resold easily. Never start a loom without cash covering raw materials.",
+            how: [
+              "Require 50% deposit via UAE Bank Transfer (IBAN) before yarn dyeing begins.",
+              "The 50% advance fully funds wool procurement, weaver labor, and Bhadohi production.",
+              "Upon rug completion: send 4K QC video; require remaining 50% balance before customs dispatch or Cash On Delivery (COD) at client villa.",
+              "For approved corporate hotel accounts: 50% advance, 40% against Bill of Lading, 10% on installation."
+            ]
+          },
+          {
+            id: "sf_3",
+            title: "Target Costing & 50%+ Gross Margin Calculator",
+            priority: "must",
+            when: "Reviewed on every quotation",
+            owner: "Founder",
+            kpi: "Maintain minimum 45% Gross Profit Margin on bespoke, 35% on volume",
+            cost: "0 AED (Configured in Command Center)",
+            depends: "Yarn price updates from Bhadohi",
+            why: "Selling too cheap builds a trap of working 14 hours a day for zero profit. High-end Dubai interior designers expect luxury pricing; underpricing actually damages credibility.",
+            how: [
+              "Raw Cost Bhadohi (Hand-tufted wool): approx 180–240 AED / sqm.",
+              "Freight + Duty + Delivery Dubai: approx 70–90 AED / sqm.",
+              "Total Landed Cost: approx 260–330 AED / sqm.",
+              "Retail/Designer Price: 650–950 AED / sqm ($60–$90/sqft).",
+              "Net Gross Profit: 350–600 AED per square meter."
+            ]
+          }
+        ]
+      },
+      {
+        id: "operations_systems",
+        title: "9. Operations, Daily Rituals & Command Center Rhythm",
+        tag: "Execution Discipline",
+        color: "var(--gold-accent)",
+        nodes: [
+          {
+            id: "op_1",
+            title: "Morning 09:00 Sales Power Hour (The Non-Negotiable Ritual)",
+            priority: "must",
+            when: "Daily (Monday to Friday, 09:00–10:30 GST)",
+            owner: "Founder",
+            kpi: "100% Morning Plan MITs completed; 20 outbound touches before 11:00 AM",
+            cost: "1.5 hours focused discipline",
+            depends: "Command Center Daily Planner",
+            why: "Solo founders get swallowed by operations, WhatsApp chats, and fires. If outreach doesn't happen in the morning, revenue dies in 60 days.",
+            how: [
+              "09:00: Open Command Center Today page. Review Morning Brief and 3 MITs.",
+              "09:15–10:15: Zero email reading, zero news. Send 20 customized WhatsApp outreaches from the campaign queue.",
+              "10:15–10:30: Clear pending Day 4 and Day 7 follow-ups.",
+              "Mark morning outreach target achieved in Command Center to maintain daily consistency streak."
+            ]
+          },
+          {
+            id: "op_2",
+            title: "Midday 14:00 Bhadohi Production Sync Call",
+            priority: "must",
+            when: "Daily (Monday to Saturday, 14:00–14:30 GST / 15:30 IST)",
+            owner: "Founder + Bhadohi Factory Manager",
+            kpi: "Zero order delays; daily status update on all active looms",
+            cost: "30 minutes / day",
+            depends: "Active production order list",
+            why: "A 30-minute daily sync prevents loom bottlenecks, color mismatch, and packing oversights before they become client emergencies.",
+            how: [
+              "WhatsApp Video Call directly on the loom floor.",
+              "Review active order milestones: Dyeing -> Weaving -> Latexing -> Shearing -> Packing.",
+              "Review upcoming project samples and swatch kit requirements.",
+              "Record updates in Command Center Task notes linked to respective leads."
+            ]
+          },
+          {
+            id: "op_3",
+            title: "Evening 18:30 Command Center Review & Next-Day MITs",
+            priority: "must",
+            when: "Daily (18:30–18:50 GST)",
+            owner: "Founder",
+            kpi: "100% Evening Review completion streak; tomorrow's 3 MITs locked",
+            cost: "20 minutes / day",
+            depends: "Today's logged calls, notes, and outreach",
+            why: "A structured evening shutdown resets the founder's mental RAM and ensures you wake up with crystal clarity on exactly what to execute next morning.",
+            how: [
+              "Open Command Center Evening Review dialog.",
+              "System auto-calculates today's emails sent, WhatsApps sent, and calls logged.",
+              "Record: What went well? What blocked a deal? Won deals & deal values.",
+              "Select 3 high-impact Most Important Tasks (MITs) for tomorrow.",
+              "Close browser and transition to personal evening."
+            ]
+          }
+        ]
+      },
+      {
+        id: "risk_contingency",
+        title: "10. Strategic Risk Safeguards & Contingency Playbooks",
+        tag: "Defense & Margin Protection",
+        color: "var(--rose-accent)",
+        nodes: [
+          {
+            id: "rc_1",
+            title: "Bhadohi Monsoon & Festival Loom Delay Buffer",
+            priority: "must",
+            when: "Monsoon (July–Sept) & Diwali (Oct–Nov)",
+            owner: "Founder + Bhadohi Production Lead",
+            kpi: "Always quote +7 buffer days during latex drying season",
+            cost: "0 AED",
+            depends: "Factory calendar alignment",
+            why: "Latex and washed rugs dry in natural sun and air. Heavy humidity during monsoon or weaver absence during Diwali can delay shipping by 10 days.",
+            how: [
+              "Install electric hot-air dehumidifiers in Bhadohi drying rooms for emergency monsoon drying.",
+              "Quote clients 28 calendar days instead of 21 days during monsoon/festival windows.",
+              "Over-communicate milestone progress with client via photo updates every Friday."
+            ]
+          },
+          {
+            id: "rc_2",
+            title: "Client Ghosting After Sample Delivery Playbook",
+            priority: "next",
+            when: "When a designer holds swatches for > 10 days without a project quote",
+            owner: "Founder",
+            kpi: "Retrieve or reactivate 60% of idle swatch kits",
+            cost: "15 minutes phone time",
+            depends: "Sample kit delivery tracking in CRM",
+            why: "Physical swatch kits represent hard cash (350 AED). Designers rarely throw them away; they just get buried under competitor fabrics.",
+            how: [
+              "Send friendly WhatsApp voice note: 'Hi Sarah, hope the wool swatches are helping with your current client boards! I'm refreshing our library this week—did you have an upcoming project needing a quick quote, or should I stop by to collect them?'",
+              "90% of designers will apologize and share their active floorplan immediately."
+            ]
+          }
+        ]
+      }
+    ];
+
+    // State management
+    let completedNodes = JSON.parse(localStorage.getItem('knotiq_completed_nodes') || '[]');
+    let currentTheme = localStorage.getItem('knotiq_theme') || 'dark';
+
+    if (currentTheme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+
+    function toggleTheme() {
+      currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', currentTheme);
+      localStorage.setItem('knotiq_theme', currentTheme);
+    }
+
+    // Render Mindmap Branches
+    function renderMindmap() {
+      const container = document.getElementById('branchesGrid');
+      container.innerHTML = '';
+
+      MINDMAP_DATA.forEach((branch) => {
+        const branchCard = document.createElement('div');
+        branchCard.className = 'branch-card';
+        branchCard.id = `branch-${branch.id}`;
+
+        const header = document.createElement('div');
+        header.className = 'branch-header';
+        header.onclick = () => toggleBranch(branch.id);
+
+        header.innerHTML = `
+          <h3>
+            <span style="color: ${branch.color};">●</span>
+            ${branch.title}
+          </h3>
+          <span class="branch-tag" style="background: rgba(255,255,255,0.06); color: var(--text-muted); border: 1px solid var(--border-color);">
+            ${branch.nodes.length} Actions
+          </span>
+        `;
+
+        const nodesList = document.createElement('div');
+        nodesList.className = 'nodes-list';
+        nodesList.id = `nodes-${branch.id}`;
+
+        branch.nodes.forEach((node) => {
+          const isDone = completedNodes.includes(node.id);
+          const pClass = node.priority === 'must' ? 'p-must' : (node.priority === 'next' ? 'p-next' : 'p-later');
+
+          const nodeEl = document.createElement('div');
+          nodeEl.className = `action-node ${isDone ? 'completed' : ''}`;
+          nodeEl.id = `node-${node.id}`;
+          nodeEl.onclick = (e) => {
+            if (e.target.tagName !== 'INPUT') {
+              openDrawer(branch, node);
+            }
+          };
+
+          nodeEl.innerHTML = `
+            <div class="node-header-row">
+              <div class="node-title-group">
+                <input type="checkbox" class="node-check" ${isDone ? 'checked' : ''} onchange="toggleNodeDone('${node.id}', this.checked)">
+                <span class="node-title">${node.title}</span>
+              </div>
+              <span class="priority-badge ${pClass}">${node.priority}</span>
+            </div>
+            <div class="node-quick-stats">
+              <span>⏱️ ${node.when}</span>
+              <span>👤 ${node.owner}</span>
+            </div>
+          `;
+
+          nodesList.appendChild(nodeEl);
+        });
+
+        branchCard.appendChild(header);
+        branchCard.appendChild(nodesList);
+        container.appendChild(branchCard);
+      });
+    }
+
+    function toggleBranch(branchId) {
+      const list = document.getElementById(`nodes-${branchId}`);
+      if (list.style.display === 'none') {
+        list.style.display = 'flex';
+      } else {
+        list.style.display = 'none';
+      }
+    }
+
+    function toggleAllBranches(expand) {
+      MINDMAP_DATA.forEach((b) => {
+        const list = document.getElementById(`nodes-${b.id}`);
+        if (list) list.style.display = expand ? 'flex' : 'none';
+      });
+    }
+
+    function toggleNodeDone(nodeId, isChecked) {
+      if (isChecked) {
+        if (!completedNodes.includes(nodeId)) completedNodes.push(nodeId);
+      } else {
+        completedNodes = completedNodes.filter((id) => id !== nodeId);
+      }
+      localStorage.setItem('knotiq_completed_nodes', JSON.stringify(completedNodes));
+      const el = document.getElementById(`node-${nodeId}`);
+      if (el) {
+        el.classList.toggle('completed', isChecked);
+      }
+    }
+
+    // Drawer management
+    function openDrawer(branch, node) {
+      document.getElementById('drawerBranchBadge').textContent = branch.title.split('.')[1]?.trim() || branch.title;
+      document.getElementById('drawerBranchBadge').style.color = branch.color;
+      document.getElementById('drawerTitle').textContent = node.title;
+      
+      const pBadge = node.priority.toUpperCase();
+      document.getElementById('drawerPriority').innerHTML = `<span class="priority-badge ${node.priority === 'must' ? 'p-must' : 'p-next'}">${pBadge}</span>`;
+      document.getElementById('drawerWhen').textContent = node.when;
+      document.getElementById('drawerOwner').textContent = node.owner;
+      document.getElementById('drawerKpi').textContent = node.kpi;
+      document.getElementById('drawerCost').textContent = node.cost;
+      document.getElementById('drawerDepends').textContent = node.depends;
+
+      document.getElementById('drawerWhy').textContent = node.why;
+
+      const howHtml = `<ol>` + node.how.map((step) => `<li>${step}</li>`).join('') + `</ol>`;
+      document.getElementById('drawerHow').innerHTML = howHtml;
+
+      document.getElementById('detailDrawer').classList.add('open');
+    }
+
+    function openCentralGoal() {
+      document.getElementById('drawerBranchBadge').textContent = "NORTH STAR";
+      document.getElementById('drawerBranchBadge').style.color = "var(--gold-accent)";
+      document.getElementById('drawerTitle').textContent = "100,000 AED / Month B2B Rug Revenue Engine";
+      document.getElementById('drawerPriority').innerHTML = `<span class="priority-badge p-must">TARGET</span>`;
+      document.getElementById('drawerWhen').textContent = "Next 90 to 180 Days";
+      document.getElementById('drawerOwner').textContent = "Founder (Ajman Lead)";
+      document.getElementById('drawerKpi').textContent = "100,000 AED/mo revenue; 10 active repeat accounts";
+      document.getElementById('drawerCost').textContent = "Operational cash flow self-funded by 50% deposits";
+      document.getElementById('drawerDepends').textContent = "Command Center outreach engine + Bhadohi loom SLAs";
+
+      document.getElementById('drawerWhy').textContent = "Establishing Knotiq as the preferred direct manufacturer for UAE luxury interior designers, villas, and boutique hotels creates predictable high-margin repeat revenue with zero retail showroom overhead.";
+
+      document.getElementById('drawerHow').innerHTML = `
+        <ol>
+          <li><strong>Top of Funnel:</strong> Scrape 50 verified UAE interior designers per week via Command Center.</li>
+          <li><strong>Outreach:</strong> Send 20 customized WhatsApp touches daily with Day 1, Day 4, and Day 7 cadence.</li>
+          <li><strong>Physical Touch:</strong> Deliver 10 luxury sample swatch boxes directly to design studios monthly.</li>
+          <li><strong>Fast Quotes:</strong> Issue quotes within 4 hours at 45%+ gross margin; follow up at 48 hours.</li>
+          <li><strong>Flawless Execution:</strong> Weave in 21 days in Bhadohi; sign off via 5-point 4K video QC; deliver DDP Dubai.</li>
+        </ol>
+      `;
+
+      document.getElementById('detailDrawer').classList.add('open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('detailDrawer').classList.remove('open');
+    }
+
+    // Search & Filter
+    function filterNodes(query) {
+      const q = query.toLowerCase().trim();
+      MINDMAP_DATA.forEach((b) => {
+        let branchHasMatch = false;
+        b.nodes.forEach((n) => {
+          const match = n.title.toLowerCase().includes(q) ||
+                        n.why.toLowerCase().includes(q) ||
+                        n.owner.toLowerCase().includes(q) ||
+                        n.kpi.toLowerCase().includes(q);
+          const el = document.getElementById(`node-${n.id}`);
+          if (el) {
+            el.style.display = match ? 'flex' : 'none';
+            if (match) branchHasMatch = true;
+          }
+        });
+        const branchEl = document.getElementById(`branch-${b.id}`);
+        if (branchEl) {
+          branchEl.style.display = (branchHasMatch || q === '') ? 'block' : 'none';
+        }
+      });
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      renderMindmap();
+    });
+  </script>
+</body>
+</html>

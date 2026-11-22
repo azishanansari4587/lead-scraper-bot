@@ -18,6 +18,7 @@ import {
   Layers,
   Send,
   CheckSquare,
+  Compass,
   X
 } from 'lucide-react';
 
@@ -37,6 +38,7 @@ const NAV_GROUPS = [
     title: 'Growth & Outreach',
     items: [
       { path: '/marketing', label: 'Marketing', icon: Megaphone },
+      { path: '/mindmap', label: 'Growth Mindmap', icon: Compass },
       { path: '/search', label: 'Search & Scrape', icon: Search },
       { path: '/bulk', label: 'Bulk Send', icon: Send },
       { path: '/google', label: 'Google Search & GBP', icon: Globe },

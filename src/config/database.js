@@ -13,7 +13,11 @@ function isLocalHost(host) {
 }
 
 function validateHostSafety(host) {
-  const allowRemote = process.env.ALLOW_REMOTE_DB === 'true' || env.ALLOW_REMOTE_DB === true;
+  // Check process.env explicitly first so runtime switches and test overrides take precedence
+  const allowRemote = process.env.ALLOW_REMOTE_DB !== undefined
+    ? process.env.ALLOW_REMOTE_DB === 'true'
+    : env.ALLOW_REMOTE_DB === true;
+
   if (!isLocalHost(host) && !allowRemote) {
     const errorMsg = `[SAFETY GUARD] Refusing database connection to remote host "${host}". Set ALLOW_REMOTE_DB=true to connect to non-local databases.`;
     logger.error({ host }, errorMsg);

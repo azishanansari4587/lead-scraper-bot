@@ -19,6 +19,7 @@ import Sources from './pages/Sources';
 import Exports from './pages/Exports';
 import Settings from './pages/Settings';
 import BulkSend from './pages/BulkSend';
+import Mindmap from './pages/Mindmap';
 
 import { api } from './api';
 
@@ -30,6 +31,7 @@ const ROUTE_TITLES = {
   '/notes': 'Founder Notebook',
   '/calendar': 'Calendar & Meeting Scheduler',
   '/marketing': 'Marketing & Multi-Channel Campaigns',
+  '/mindmap': 'Strategy & Growth Mindmap',
   '/search': 'Search & Scrape Discovery',
   '/bulk': 'Bulk Outreach & Sequences',
   '/google': 'Google Search Console & Business Profile',
@@ -81,6 +83,7 @@ function DashboardLayout() {
             <Route path="/notes" element={<Notes />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/marketing" element={<Marketing />} />
+            <Route path="/mindmap" element={<Mindmap />} />
             <Route path="/google" element={<Google />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/search" element={<SearchScrape onNavigate={navigate} />} />
