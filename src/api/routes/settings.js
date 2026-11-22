@@ -8,10 +8,63 @@ const path = require('path');
 const env = require('../../config/env');
 const aiService = require('../../services/aiService');
 const scraperManager = require('../../scrapers/ScraperManager');
+const UserSettings = require('../../models/UserSettings');
 const logger = require('../../config/logger');
 const { requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
+
+/**
+ * GET /api/settings/user - Get founder user settings (timezone, daily targets)
+ */
+router.get('/user', async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    let settings = await UserSettings.findOne({ where: { userId } });
+    if (!settings) {
+      settings = await UserSettings.create({
+        userId,
+        timezone: 'Asia/Dubai',
+        dailyEmailTarget: 30,
+        dailyWhatsappTarget: 30,
+        dailyCallTarget: 20
+      });
+    }
+    res.json({ success: true, settings });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PATCH /api/settings/user - Update founder user settings
+ */
+router.patch('/user', async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    let settings = await UserSettings.findOne({ where: { userId } });
+    if (!settings) {
+      settings = await UserSettings.create({ userId, ...req.body });
+    } else {
+      const allowed = [
+        'timezone',
+        'dailyEmailTarget',
+        'dailyWhatsappTarget',
+        'dailyCallTarget',
+        'notifyTelegram',
+        'notifyEmail'
+      ];
+      const updates = {};
+      allowed.forEach((k) => {
+        if (req.body[k] !== undefined) updates[k] = req.body[k];
+      });
+      await settings.update(updates);
+    }
+    res.json({ success: true, settings });
+  } catch (err) {
+    next(err);
+  }
+});
 
 function updateEnvFile(key, value) {
   try {

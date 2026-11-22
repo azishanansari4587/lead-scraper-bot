@@ -1,6 +1,7 @@
 /**
  * Leads REST API Router
  * Endpoints for searching, paginating, creating, updating, and bulk operations on leads.
+ * Extended for Phase A: Buyer Classification, Priority, Timeline, Mark-Replied.
  */
 
 const express = require('express');
@@ -9,6 +10,9 @@ const Lead = require('../../models/Lead');
 const AuditLog = require('../../models/AuditLog');
 const { calculateLeadScore } = require('../../services/scoring');
 const { generateDedupeKey, normalizeDomain, normalizePhone } = require('../../services/dedupe');
+const { classifyBuyer } = require('../../services/classification/buyerClassifier');
+const timelineService = require('../../services/timeline/timelineService');
+const followUpEngine = require('../../services/followUp/followUpEngine');
 const logger = require('../../config/logger');
 
 const router = express.Router();
@@ -27,6 +31,8 @@ router.get('/', async (req, res, next) => {
 
     // Filters
     if (req.query.leadType) where.leadType = req.query.leadType;
+    if (req.query.buyerType) where.buyerType = req.query.buyerType;
+    if (req.query.priority) where.priority = req.query.priority;
     if (req.query.country) where.country = req.query.country;
     if (req.query.city) where.city = req.query.city;
     if (req.query.status) where.status = req.query.status;
@@ -60,14 +66,24 @@ router.get('/', async (req, res, next) => {
         { businessName: { [Op.like]: search } },
         { city: { [Op.like]: search } },
         { email: { [Op.like]: search } },
-        { phone: { [Op.like]: search } }
+        { phone: { [Op.like]: search } },
+        { detail: { [Op.like]: search } }
       ];
     }
 
     // Sorting
     const sortBy = req.query.sortBy || 'score';
     const sortOrder = req.query.sortOrder === 'ASC' ? 'ASC' : 'DESC';
-    const allowedSortFields = ['score', 'createdAt', 'rating', 'reviewCount', 'businessName'];
+    const allowedSortFields = [
+      'score',
+      'createdAt',
+      'rating',
+      'reviewCount',
+      'businessName',
+      'nextFollowUpAt',
+      'priority',
+      'buyerType'
+    ];
     const order = [[allowedSortFields.includes(sortBy) ? sortBy : 'score', sortOrder]];
 
     const { count, rows } = await Lead.findAndCountAll({
@@ -91,7 +107,7 @@ router.get('/', async (req, res, next) => {
 });
 
 /**
- * GET /api/leads/stats - Summary metrics for dashboard
+ * GET /api/leads/stats - Summary metrics for dashboard with buyer type breakdown
  */
 router.get('/stats', async (req, res, next) => {
   try {
@@ -104,6 +120,19 @@ router.get('/stats', async (req, res, next) => {
     const avgScore = total > 0 ? Math.round(leads.reduce((s, l) => s + (l.score || 0), 0) / total) : 0;
 
     const byLeadType = {};
+    const byBuyerType = {
+      all: total,
+      designer: 0,
+      importer: 0,
+      hotel: 0,
+      retailer: 0,
+      online_seller: 0,
+      homeowner: 0,
+      developer: 0,
+      investor: 0,
+      unclassified: 0
+    };
+    const byPriority = { hot: 0, warm: 0, cold: 0 };
     const byCountry = {};
     const byStatus = {};
 
@@ -111,6 +140,12 @@ router.get('/stats', async (req, res, next) => {
       byLeadType[l.leadType] = (byLeadType[l.leadType] || 0) + 1;
       byCountry[l.country] = (byCountry[l.country] || 0) + 1;
       byStatus[l.status] = (byStatus[l.status] || 0) + 1;
+
+      const bt = l.buyerType || 'unclassified';
+      byBuyerType[bt] = (byBuyerType[bt] || 0) + 1;
+
+      const prio = l.priority || 'warm';
+      byPriority[prio] = (byPriority[prio] || 0) + 1;
     });
 
     res.json({
@@ -120,6 +155,8 @@ router.get('/stats', async (req, res, next) => {
       rugsVerified,
       avgScore,
       byLeadType,
+      byBuyerType,
+      byPriority,
       byCountry,
       byStatus
     });
@@ -148,7 +185,120 @@ router.get('/:id', async (req, res, next) => {
 });
 
 /**
- * POST /api/leads - Create lead manually
+ * GET /api/leads/:id/timeline - Unified activity stream (calls, notes, followups, outreach)
+ */
+router.get('/:id/timeline', async (req, res, next) => {
+  try {
+    const lead = await Lead.findOne({
+      where: { id: req.params.id, userId: req.userId }
+    });
+    if (!lead) {
+      return res.status(404).json({ error: 'NotFound', message: 'Lead not found' });
+    }
+
+    const timeline = await timelineService.getLeadTimeline(req.userId, lead.id);
+    res.json({ success: true, leadId: lead.id, timeline });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/leads/:id/mark-replied - Mark lead as replied, cancels pending follow-ups
+ */
+router.post('/:id/mark-replied', async (req, res, next) => {
+  try {
+    const { replyNote } = req.body;
+    const result = await followUpEngine.markReplied(req.userId, parseInt(req.params.id, 10), replyNote);
+    res.json(result);
+  } catch (err) {
+    if (err.message && err.message.includes('not found')) {
+      return res.status(404).json({ error: 'NotFound', message: err.message });
+    }
+    next(err);
+  }
+});
+
+/**
+ * PATCH /api/leads/:id/buyer-type - In-place manual buyer type override
+ */
+router.patch('/:id/buyer-type', async (req, res, next) => {
+  try {
+    const { buyerType } = req.body;
+    const validBuyerTypes = [
+      'designer',
+      'importer',
+      'hotel',
+      'retailer',
+      'online_seller',
+      'homeowner',
+      'developer',
+      'investor',
+      'unclassified'
+    ];
+
+    if (!validBuyerTypes.includes(buyerType)) {
+      return res.status(400).json({
+        error: 'ValidationError',
+        message: `buyerType must be one of: ${validBuyerTypes.join(', ')}`
+      });
+    }
+
+    const lead = await Lead.findOne({
+      where: { id: req.params.id, userId: req.userId }
+    });
+    if (!lead) {
+      return res.status(404).json({ error: 'NotFound', message: 'Lead not found' });
+    }
+
+    await lead.update({
+      buyerType,
+      buyerTypeConfidence: 1.0,
+      buyerTypeReason: 'Manual override by user',
+      buyerTypeManual: true
+    });
+
+    await AuditLog.create({
+      userId: req.userId,
+      action: 'BUYER_TYPE_OVERRIDDEN',
+      entityType: 'Lead',
+      entityId: String(lead.id),
+      details: { newBuyerType: buyerType }
+    });
+
+    res.json({ success: true, lead });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/leads/:id/classify - Trigger classification on demand
+ */
+router.post('/:id/classify', async (req, res, next) => {
+  try {
+    const lead = await Lead.findOne({
+      where: { id: req.params.id, userId: req.userId }
+    });
+    if (!lead) {
+      return res.status(404).json({ error: 'NotFound', message: 'Lead not found' });
+    }
+
+    const classification = await classifyBuyer(lead);
+    await lead.update({
+      buyerType: classification.buyerType,
+      buyerTypeConfidence: classification.confidence,
+      buyerTypeReason: classification.reason
+    });
+
+    res.json({ success: true, lead, classification });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/leads - Create lead manually (supports classification)
  */
 router.post('/', async (req, res, next) => {
   try {
@@ -166,6 +316,11 @@ router.post('/', async (req, res, next) => {
       phone: payload.phone ? normalizePhone(payload.phone) : null,
       whatsapp: payload.whatsapp ? normalizePhone(payload.whatsapp) : (payload.phone ? normalizePhone(payload.phone) : null),
       leadType: payload.leadType || 'rug_retailer',
+      priority: payload.priority || 'warm',
+      detail: payload.detail || null,
+      project: payload.project || null,
+      platform: payload.platform || null,
+      sizes: payload.sizes || null,
       source: payload.source || 'manual',
       status: payload.status || 'new'
     };
@@ -175,6 +330,19 @@ router.post('/', async (req, res, next) => {
     leadData.score = scoreResult.score;
     leadData.scoreReason = scoreResult.scoreReason;
 
+    // Automatic classification if not provided
+    if (payload.buyerType) {
+      leadData.buyerType = payload.buyerType;
+      leadData.buyerTypeConfidence = 1.0;
+      leadData.buyerTypeReason = 'Explicitly set during creation';
+      leadData.buyerTypeManual = true;
+    } else {
+      const classification = await classifyBuyer(leadData);
+      leadData.buyerType = classification.buyerType;
+      leadData.buyerTypeConfidence = classification.confidence;
+      leadData.buyerTypeReason = classification.reason;
+    }
+
     const created = await Lead.create(leadData);
 
     await AuditLog.create({
@@ -182,7 +350,7 @@ router.post('/', async (req, res, next) => {
       action: 'lead_created',
       entityType: 'Lead',
       entityId: String(created.id),
-      details: { businessName: created.businessName }
+      details: { businessName: created.businessName, buyerType: created.buyerType }
     });
 
     res.status(201).json({ success: true, lead: created });
@@ -212,6 +380,12 @@ router.patch('/:id', async (req, res, next) => {
 
     // Do not allow changing userId or dedupeKey directly
     const { userId: _, dedupeKey: __, id: ___, ...updates } = req.body;
+
+    if (updates.buyerType && updates.buyerType !== lead.buyerType) {
+      updates.buyerTypeManual = true;
+      updates.buyerTypeConfidence = 1.0;
+      updates.buyerTypeReason = 'Manual update';
+    }
 
     // Recalculate score if key attributes changed
     if (updates.leadType || updates.phone || updates.email || updates.website || updates.sellsRugsSignal !== undefined) {

@@ -1,9 +1,16 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
+  Sun,
   LayoutDashboard,
   Search,
   Users,
+  PhoneCall,
+  Calendar,
+  FileText,
+  Megaphone,
+  Globe,
+  BarChart2,
   BookmarkCheck,
   Download,
   Sliders,
@@ -15,26 +22,32 @@ import {
 
 const NAV_GROUPS = [
   {
-    title: 'Workspace',
+    title: 'Command Center',
     items: [
-      { path: '/overview', label: 'Overview', icon: LayoutDashboard },
+      { path: '/today', label: 'Today Hub', icon: Sun },
+      { path: '/leads', label: 'Leads Pipeline', icon: Users },
+      { path: '/calls', label: 'Calls & Scripts', icon: PhoneCall },
+      { path: '/calendar', label: 'Calendar', icon: Calendar },
+      { path: '/notes', label: 'Notebook', icon: FileText }
+    ]
+  },
+  {
+    title: 'Growth & Outreach',
+    items: [
+      { path: '/marketing', label: 'Marketing', icon: Megaphone },
       { path: '/search', label: 'Search & Scrape', icon: Search },
-      { path: '/leads', label: 'Leads CRM', icon: Users }
-    ]
-  },
-  {
-    title: 'Outreach',
-    items: [
       { path: '/bulk', label: 'Bulk Send', icon: Send },
-      { path: '/presets', label: 'Presets & Schedules', icon: BookmarkCheck },
-      { path: '/exports', label: 'Data Exports', icon: Download }
+      { path: '/google', label: 'Google Search & GBP', icon: Globe },
+      { path: '/reports', label: 'Reports & ROI', icon: BarChart2 }
     ]
   },
   {
-    title: 'System',
+    title: 'System & Tools',
     items: [
+      { path: '/presets', label: 'Presets & Schedules', icon: BookmarkCheck },
+      { path: '/exports', label: 'Data Exports', icon: Download },
       { path: '/sources', label: 'Scraper Engines', icon: Layers },
-      { path: '/settings', label: 'Settings & Health', icon: Sliders }
+      { path: '/settings', label: 'Settings & Targets', icon: Sliders }
     ]
   }
 ];
@@ -63,7 +76,7 @@ export default function Sidebar({ geminiStats, mobileOpen, setMobileOpen }) {
           <img src="/favicon.png" alt="Knotiq Rugs Logo" className="brand-icon" />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="brand-name">KNOTIQ RUGS</div>
-            <div className="brand-subtitle">Export Lead Intelligence</div>
+            <div className="brand-subtitle">Business Management System</div>
           </div>
           {mobileOpen && (
             <button
@@ -117,7 +130,7 @@ export default function Sidebar({ geminiStats, mobileOpen, setMobileOpen }) {
             </div>
           </div>
           <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)', textAlign: 'center' }}>
-            Target Markets: UAE • GCC • US • UK • EU
+            Office: Ajman, UAE • Mill: Bhadohi, India
           </div>
         </div>
       </aside>

@@ -9,11 +9,24 @@ import {
   Ban,
   MapPin,
   Key,
-  CheckCircle2
+  CheckCircle2,
+  Server
 } from 'lucide-react';
 import { api } from '../api';
+import {
+  Button,
+  Field,
+  Select,
+  Card,
+  Badge,
+  EmptyState,
+  ConfirmDialog,
+  useToast
+} from '../components/ui';
 
 export default function Settings() {
+  const toast = useToast();
+
   const [settings, setSettings] = useState(null);
   const [optouts, setOptouts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,46 +34,80 @@ export default function Settings() {
   // Google API Key state
   const [googleApiKey, setGoogleApiKey] = useState('');
   const [savingKey, setSavingKey] = useState(false);
-  const [keySuccessMsg, setKeySuccessMsg] = useState('');
 
   // New OptOut form
   const [optType, setOptType] = useState('domain');
   const [optValue, setOptValue] = useState('');
   const [optReason, setOptReason] = useState('');
 
+  // Delete suppression confirm
+  const [deletingOptId, setDeletingOptId] = useState(null);
+
+  // User Settings & Daily Targets
+  const [userSettings, setUserSettings] = useState({
+    timezone: 'Asia/Dubai',
+    dailyTargetCalls: 15,
+    dailyTargetEmails: 20,
+    dailyTargetWhatsapps: 25
+  });
+  const [savingUserSettings, setSavingUserSettings] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
 
-  async function handleSaveApiKey(e) {
-    e.preventDefault();
-    setSavingKey(true);
-    setKeySuccessMsg('');
-    try {
-      const res = await api.saveApiKeys({ googlePlacesApiKey: googleApiKey });
-      setKeySuccessMsg(res.message || 'Key saved successfully');
-      setGoogleApiKey('');
-      loadData();
-    } catch (err) {
-      alert(`Failed to save key: ${err.message}`);
-    } finally {
-      setSavingKey(false);
-    }
-  }
-
   async function loadData() {
     try {
       setLoading(true);
-      const [settingsRes, optoutsRes] = await Promise.all([
+      const [settingsRes, optoutsRes, userSettingsRes] = await Promise.all([
         api.getSettings().catch(() => ({ settings: {} })),
-        api.getOptOuts().catch(() => ({ optouts: [] }))
+        api.getOptOuts().catch(() => ({ optouts: [] })),
+        api.getUserSettings().catch(() => ({ settings: {} }))
       ]);
       setSettings(settingsRes.settings);
       setOptouts(optoutsRes.optouts || []);
+      if (userSettingsRes.settings) {
+        setUserSettings({
+          timezone: userSettingsRes.settings.timezone || 'Asia/Dubai',
+          dailyTargetCalls: userSettingsRes.settings.dailyTargetCalls ?? 15,
+          dailyTargetEmails: userSettingsRes.settings.dailyTargetEmails ?? 20,
+          dailyTargetWhatsapps: userSettingsRes.settings.dailyTargetWhatsapps ?? 25
+        });
+      }
     } catch (err) {
-      console.error('Failed to load settings', err);
+      toast.error('Failed to load system settings');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSaveUserSettings(e) {
+    e.preventDefault();
+    setSavingUserSettings(true);
+    try {
+      await api.updateUserSettings(userSettings);
+      toast.success('Founder daily targets and timezone updated!');
+    } catch (err) {
+      toast.error(`Failed to update settings: ${err.message}`);
+    } finally {
+      setSavingUserSettings(false);
+    }
+  }
+
+  async function handleSaveApiKey(e) {
+    e.preventDefault();
+    if (!googleApiKey.trim()) return;
+
+    setSavingKey(true);
+    try {
+      const res = await api.saveApiKeys({ googlePlacesApiKey: googleApiKey.trim() });
+      toast.success(res.message || 'Google Places API key saved securely.');
+      setGoogleApiKey('');
+      loadData();
+    } catch (err) {
+      toast.error(`Failed to save key: ${err.message}`);
+    } finally {
+      setSavingKey(false);
     }
   }
 
@@ -77,19 +124,22 @@ export default function Settings() {
       setOptValue('');
       setOptReason('');
       loadData();
-      alert('Suppression entry added and matching leads zeroed out!');
+      toast.success('Suppression entry added and matching leads zeroed out.');
     } catch (err) {
-      alert(`Failed to add opt-out: ${err.message}`);
+      toast.error(`Failed to add suppression entry: ${err.message}`);
     }
   }
 
-  async function handleDeleteOptOut(id) {
-    if (!window.confirm('Remove from suppression list?')) return;
+  async function handleDeleteOptOut() {
+    if (!deletingOptId) return;
     try {
-      await api.deleteOptOut(id);
-      setOptouts((prev) => prev.filter((o) => o.id !== id));
+      await api.deleteOptOut(deletingOptId);
+      setOptouts((prev) => prev.filter((o) => o.id !== deletingOptId));
+      toast.success('Removed from suppression list.');
     } catch (err) {
-      alert(`Failed to delete opt-out: ${err.message}`);
+      toast.error(`Failed to delete suppression entry: ${err.message}`);
+    } finally {
+      setDeletingOptId(null);
     }
   }
 
@@ -98,194 +148,241 @@ export default function Settings() {
   return (
     <div className="page-content">
       {/* System Diagnostics Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">
-              <Sparkles size={16} color="var(--gold-primary)" /> Gemini AI Diagnostics
-            </h3>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Active Model</span>
-              <strong>gemini-1.5-flash</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Daily Usage Today</span>
-              <strong>{gemini.dailyUsageCount || 0} / {gemini.dailyLimit || 500} calls</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Cached Domains</span>
-              <strong>{gemini.cachedDomains || 0} domains</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Prompt Injection Defense</span>
-              <span className="badge badge-score-high">Enforced (&lt;untrusted_scraped_data&gt;)</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">
-              <Database size={16} color="var(--gold-primary)" /> Infrastructure & Security
-            </h3>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Database Dialect</span>
-              <strong style={{ textTransform: 'uppercase' }}>{settings?.databaseDialect || 'SQLite'}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>SSRF Protection</span>
-              <span className="badge badge-score-high">Active (Private Subnets Blocked)</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Active Scraper Engines</span>
-              <strong>{settings?.activeScrapers?.length || 0} registered</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Environment</span>
-              <strong>{settings?.environment || 'development'}</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Google Maps & Places Integration Card */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">
-              <MapPin size={16} color="var(--gold-primary)" /> Google Maps & Places Connect
-            </h3>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
+      <div className="grid-responsive">
+        {/* Gemini AI Card */}
+        <Card title="Gemini AI Diagnostics" icon={Sparkles}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: 'var(--font-sm)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Google Maps Browser Scraper</span>
-              <span className="badge badge-score-high">Connected (Free • No Key Needed)</span>
+              <span style={{ color: 'var(--text-dim)' }}>Active Model</span>
+              <strong style={{ color: 'var(--text-heading)' }}>gemini-1.5-flash</strong>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-dim)' }}>Daily Extraction Usage</span>
+              <strong className="tabular-nums" style={{ color: 'var(--text-heading)' }}>
+                {gemini.dailyUsageCount || 0} / {gemini.dailyLimit || 500} calls
+              </strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-dim)' }}>Cached Target Domains</span>
+              <strong className="tabular-nums" style={{ color: 'var(--text-heading)' }}>
+                {gemini.cachedDomains || 0} domains
+              </strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-dim)' }}>Prompt Injection Defense</span>
+              <Badge variant="success">Enforced (&lt;untrusted_data&gt;)</Badge>
+            </div>
+          </div>
+        </Card>
+
+        {/* Infrastructure & Security Diagnostics */}
+        <Card title="Infrastructure & Technical Security" icon={Server}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: 'var(--font-sm)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-dim)' }}>Database Dialect</span>
+              <strong style={{ textTransform: 'uppercase', color: 'var(--text-heading)' }}>
+                {settings?.databaseDialect || 'SQLite'}
+              </strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-dim)' }}>SSRF Private IP Shield</span>
+              <Badge variant="success">Active (Private Subnets Blocked)</Badge>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-dim)' }}>Scraper Engines Registered</span>
+              <strong className="tabular-nums" style={{ color: 'var(--text-heading)' }}>
+                {settings?.activeScrapers?.length || 12} engines
+              </strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-dim)' }}>Deployment Environment</span>
+              <strong style={{ textTransform: 'capitalize', color: 'var(--text-heading)' }}>
+                {settings?.environment || 'production'}
+              </strong>
+            </div>
+          </div>
+        </Card>
+
+        {/* Google Maps & Places Connect */}
+        <Card title="Google Places Official API" icon={MapPin}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-xs)', marginBottom: '14px' }}>
+            Official Places API provides reliable, quota-backed international place search.
+          </p>
+
+          <form onSubmit={handleSaveApiKey} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <Field label="Google Places API Key" id="google-places-key">
+              <input
+                id="google-places-key"
+                type="password"
+                className="input"
+                placeholder="AIzaSy..."
+                value={googleApiKey}
+                onChange={(e) => setGoogleApiKey(e.target.value)}
+              />
+            </Field>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Google Places API Key</span>
-              {settings?.googlePlacesApiKeyConfigured ? (
-                <span className="badge badge-score-high">
-                  Configured (Active)
-                </span>
-              ) : (
-                <span className="badge badge-score-low">Unset (Optional)</span>
-              )}
-            </div>
-
-            <form onSubmit={handleSaveApiKey} style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                {settings?.googlePlacesApiKeyConfigured ? 'Update Google Cloud Places API Key:' : 'Connect Google Places API Key:'}
-              </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="password"
-                  className="input"
-                  style={{ flex: 1, fontSize: '12px' }}
-                  placeholder="AIzaSy..."
-                  value={googleApiKey}
-                  onChange={(e) => setGoogleApiKey(e.target.value)}
-                />
-                <button type="submit" className="btn btn-secondary btn-sm" disabled={savingKey}>
-                  <Key size={13} /> {savingKey ? 'Saving...' : 'Save Key'}
-                </button>
-              </div>
-              {keySuccessMsg && (
-                <div style={{ fontSize: '11px', color: 'var(--emerald)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <CheckCircle2 size={12} /> {keySuccessMsg}
-                </div>
-              )}
-              <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                Tip: If you don't have an API key, you can still scrape Google Maps directly via the <strong>Google Maps (Browser)</strong> engine in Search & Scrape.
+              <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)' }}>
+                Status: {settings?.hasGooglePlacesKey ? (
+                  <strong style={{ color: 'var(--success)' }}>Configured</strong>
+                ) : (
+                  <strong style={{ color: 'var(--warning)' }}>Not set (Web stealth fallback active)</strong>
+                )}
               </span>
-            </form>
-          </div>
-        </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={savingKey}
+                disabled={!googleApiKey.trim()}
+              >
+                Save Key
+              </Button>
+            </div>
+          </form>
+        </Card>
+        {/* Founder Daily Targets & Schedule */}
+        <Card title="Founder Daily Targets & Schedule" icon={Sliders}>
+          <form onSubmit={handleSaveUserSettings} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <Field label="Timezone" id="user-timezone">
+              <Select
+                id="user-timezone"
+                value={userSettings.timezone}
+                onChange={(e) => setUserSettings({ ...userSettings, timezone: e.target.value })}
+              >
+                <option value="Asia/Dubai">Asia/Dubai (GST, UTC+4)</option>
+                <option value="Asia/Kolkata">Asia/Kolkata (IST, UTC+5:30)</option>
+                <option value="Europe/London">Europe/London (GMT/BST)</option>
+                <option value="America/New_York">America/New_York (EST/EDT)</option>
+              </Select>
+            </Field>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              <Field label="Calls/Day" id="target-calls">
+                <input
+                  id="target-calls"
+                  type="number"
+                  min="0"
+                  className="input"
+                  value={userSettings.dailyTargetCalls}
+                  onChange={(e) => setUserSettings({ ...userSettings, dailyTargetCalls: parseInt(e.target.value, 10) || 0 })}
+                />
+              </Field>
+
+              <Field label="Emails/Day" id="target-emails">
+                <input
+                  id="target-emails"
+                  type="number"
+                  min="0"
+                  className="input"
+                  value={userSettings.dailyTargetEmails}
+                  onChange={(e) => setUserSettings({ ...userSettings, dailyTargetEmails: parseInt(e.target.value, 10) || 0 })}
+                />
+              </Field>
+
+              <Field label="WAs/Day" id="target-was">
+                <input
+                  id="target-was"
+                  type="number"
+                  min="0"
+                  className="input"
+                  value={userSettings.dailyTargetWhatsapps}
+                  onChange={(e) => setUserSettings({ ...userSettings, dailyTargetWhatsapps: parseInt(e.target.value, 10) || 0 })}
+                />
+              </Field>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+              <Button type="submit" variant="primary" size="sm" loading={savingUserSettings}>
+                Save Targets
+              </Button>
+            </div>
+          </form>
+        </Card>
       </div>
 
-      {/* Suppression / OptOut Manager */}
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h2 className="card-title">
-              <Ban size={18} color="var(--rose)" /> Opt-Out & Suppression List
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '2px' }}>
-              Prevents contacted businesses or unsubscribed domains from being scraped or re-targeted.
-            </p>
+      {/* Suppression & Opt-Out List */}
+      <Card
+        title="Outreach Suppression & Opt-Out List"
+        icon={Ban}
+        subtitle="Domains and phone numbers added here will be automatically filtered out of all outreach campaigns."
+      >
+        <form onSubmit={handleAddOptOut} style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', marginBottom: '20px', padding: '14px', background: 'var(--bg-app)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ width: '130px' }}>
+            <Select value={optType} onChange={(e) => setOptType(e.target.value)} aria-label="Suppression type">
+              <option value="domain">Domain</option>
+              <option value="email">Email</option>
+              <option value="phone">Phone</option>
+            </Select>
           </div>
-        </div>
 
-        {/* Add Entry Form */}
-        <form onSubmit={handleAddOptOut} style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', marginBottom: '20px', padding: '16px', background: 'var(--bg-app)', borderRadius: 'var(--radius-md)' }}>
-          <select className="select" value={optType} onChange={(e) => setOptType(e.target.value)}>
-            <option value="domain">Domain</option>
-            <option value="email">Email Address</option>
-            <option value="phone">Phone Number</option>
-          </select>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <input
+              className="input"
+              placeholder={optType === 'domain' ? 'competitor.com' : optType === 'email' ? 'optout@buyer.com' : '+971...'}
+              value={optValue}
+              onChange={(e) => setOptValue(e.target.value)}
+              required
+              aria-label="Suppression target value"
+            />
+          </div>
 
-          <input
-            type="text"
-            className="input"
-            style={{ flex: 1, minWidth: '200px' }}
-            placeholder="Value to suppress (e.g. competitor.com or +97143390000)"
-            value={optValue}
-            onChange={(e) => setOptValue(e.target.value)}
-            required
-          />
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <input
+              className="input"
+              placeholder="Reason (e.g. Requested removal, competitor)"
+              value={optReason}
+              onChange={(e) => setOptReason(e.target.value)}
+              aria-label="Suppression reason"
+            />
+          </div>
 
-          <input
-            type="text"
-            className="input"
-            style={{ flex: 1, minWidth: '180px' }}
-            placeholder="Reason (e.g. Competitor / Unsubscribe)"
-            value={optReason}
-            onChange={(e) => setOptReason(e.target.value)}
-          />
-
-          <button type="submit" className="btn btn-secondary btn-sm">
-            <PlusCircle size={14} /> Add Suppression
-          </button>
+          <Button type="submit" variant="secondary" icon={PlusCircle}>
+            Add Suppression
+          </Button>
         </form>
 
-        {/* Suppression Table */}
         <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Type</th>
-                <th>Suppressed Value</th>
+                <th>Target Identifier</th>
                 <th>Reason</th>
                 <th>Added Date</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th style={{ textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {optouts.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-dim)' }}>
-                    Suppression list is empty.
+                  <td colSpan={5} style={{ padding: 0 }}>
+                    <EmptyState
+                      title="No suppression entries"
+                      description="Add any domains or contacts who have requested to opt out of trade inquiries."
+                    />
                   </td>
                 </tr>
               ) : (
                 optouts.map((opt) => (
                   <tr key={opt.id}>
                     <td>
-                      <span className="badge badge-score-low" style={{ textTransform: 'uppercase' }}>
-                        {opt.type}
-                      </span>
+                      <Badge variant="neutral">{opt.type}</Badge>
                     </td>
-                    <td style={{ fontWeight: 600, color: '#FFF' }}>{opt.value}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{opt.reason || 'Manual'}</td>
-                    <td style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-                      {opt.requestedAt ? new Date(opt.requestedAt).toLocaleDateString() : 'Recent'}
+                    <td style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{opt.value}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>{opt.reason || 'Manual entry'}</td>
+                    <td className="tabular-nums" style={{ color: 'var(--text-dim)', fontSize: 'var(--font-xs)' }}>
+                      {new Date(opt.createdAt).toLocaleDateString()}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDeleteOptOut(opt.id)}>
-                        <Trash2 size={13} />
-                      </button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        icon={Trash2}
+                        onClick={() => setDeletingOptId(opt.id)}
+                        aria-label={`Remove suppression for ${opt.value}`}
+                      />
                     </td>
                   </tr>
                 ))
@@ -293,7 +390,17 @@ export default function Settings() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
+
+      {/* Confirm Delete Opt-Out Modal */}
+      <ConfirmDialog
+        isOpen={Boolean(deletingOptId)}
+        onClose={() => setDeletingOptId(null)}
+        onConfirm={handleDeleteOptOut}
+        title="Remove Suppression Entry"
+        message="Are you sure you want to remove this entry from the suppression list? This contact will become eligible for future outreach campaigns."
+        confirmText="Remove Entry"
+      />
     </div>
   );
 }

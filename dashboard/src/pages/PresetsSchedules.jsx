@@ -11,8 +11,21 @@ import {
   ToggleRight
 } from 'lucide-react';
 import { api } from '../api';
+import {
+  Button,
+  Field,
+  Select,
+  Card,
+  Modal,
+  Badge,
+  EmptyState,
+  ConfirmDialog,
+  useToast
+} from '../components/ui';
 
 export default function PresetsSchedules({ onRunPreset }) {
+  const toast = useToast();
+
   const [presets, setPresets] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +37,11 @@ export default function PresetsSchedules({ onRunPreset }) {
   const [scheduleCountry, setScheduleCountry] = useState('UAE');
   const [scheduleCity, setScheduleCity] = useState('Dubai');
   const [scheduleLeadType, setScheduleLeadType] = useState('rug_retailer');
+  const [creatingSchedule, setCreatingSchedule] = useState(false);
+
+  // Confirm delete dialogs
+  const [deletePresetId, setDeletePresetId] = useState(null);
+  const [deleteScheduleId, setDeleteScheduleId] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -39,19 +57,22 @@ export default function PresetsSchedules({ onRunPreset }) {
       setPresets(presetsRes.presets || []);
       setSchedules(schedulesRes.schedules || []);
     } catch (err) {
-      console.error('Failed to load presets/schedules', err);
+      toast.error('Failed to load presets or schedules');
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleDeletePreset(id) {
-    if (!window.confirm('Delete this search preset?')) return;
+  async function handleDeletePreset() {
+    if (!deletePresetId) return;
     try {
-      await api.deletePreset(id);
-      setPresets((prev) => prev.filter((p) => p.id !== id));
+      await api.deletePreset(deletePresetId);
+      setPresets((prev) => prev.filter((p) => p.id !== deletePresetId));
+      toast.success('Search preset deleted successfully.');
     } catch (err) {
-      alert(`Failed to delete preset: ${err.message}`);
+      toast.error(`Failed to delete preset: ${err.message}`);
+    } finally {
+      setDeletePresetId(null);
     }
   }
 
@@ -61,23 +82,33 @@ export default function PresetsSchedules({ onRunPreset }) {
       setSchedules((prev) =>
         prev.map((s) => (s.id === id ? { ...s, enabled: res.enabled } : s))
       );
+      toast.success(`Schedule is now ${res.enabled ? 'Active' : 'Paused'}.`);
     } catch (err) {
-      alert(`Failed to toggle schedule: ${err.message}`);
+      toast.error(`Failed to toggle schedule: ${err.message}`);
     }
   }
 
-  async function handleDeleteSchedule(id) {
-    if (!window.confirm('Delete this schedule?')) return;
+  async function handleDeleteSchedule() {
+    if (!deleteScheduleId) return;
     try {
-      await api.deleteSchedule(id);
-      setSchedules((prev) => prev.filter((s) => s.id !== id));
+      await api.deleteSchedule(deleteScheduleId);
+      setSchedules((prev) => prev.filter((s) => s.id !== deleteScheduleId));
+      toast.success('Schedule deleted.');
     } catch (err) {
-      alert(`Failed to delete schedule: ${err.message}`);
+      toast.error(`Failed to delete schedule: ${err.message}`);
+    } finally {
+      setDeleteScheduleId(null);
     }
   }
 
   async function handleCreateSchedule(e) {
     e.preventDefault();
+    if (!scheduleName.trim()) {
+      toast.warning('Please enter a schedule name.');
+      return;
+    }
+
+    setCreatingSchedule(true);
     try {
       const res = await api.createSchedule({
         name: scheduleName.trim(),
@@ -89,22 +120,22 @@ export default function PresetsSchedules({ onRunPreset }) {
       setSchedules((prev) => [res.schedule, ...prev]);
       setShowScheduleModal(false);
       setScheduleName('');
-      alert('Schedule created successfully!');
+      toast.success('Automated schedule created successfully.');
     } catch (err) {
-      alert(`Failed to create schedule: ${err.message}`);
+      toast.error(`Failed to create schedule: ${err.message}`);
+    } finally {
+      setCreatingSchedule(false);
     }
   }
 
   return (
     <div className="page-content">
       {/* Saved Search Presets */}
-      <div className="card">
-        <div className="card-header">
-          <h2 className="card-title">
-            <BookmarkCheck size={18} color="var(--gold-primary)" /> Saved Search Filter Presets
-          </h2>
-        </div>
-
+      <Card
+        title="Saved Search Filter Presets"
+        icon={BookmarkCheck}
+        subtitle="Reusable search criteria for instant 1-click execution or recurring campaigns."
+      >
         <div className="table-container">
           <table className="data-table">
             <thead>
@@ -119,26 +150,41 @@ export default function PresetsSchedules({ onRunPreset }) {
             <tbody>
               {presets.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-dim)' }}>
-                    No search presets saved yet. Save frequent queries from the Search & Scrape tab.
+                  <td colSpan={5} style={{ padding: 0 }}>
+                    <EmptyState
+                      title="No search presets saved yet"
+                      description="Save frequent queries from the Search & Scrape tab for 1-click re-use."
+                    />
                   </td>
                 </tr>
               ) : (
                 presets.map((preset) => (
                   <tr key={preset.id}>
-                    <td style={{ fontWeight: 600, color: '#FFF' }}>{preset.name}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{preset.name}</td>
                     <td>{preset.city || 'All Cities'}, {preset.country}</td>
                     <td style={{ textTransform: 'capitalize' }}>
                       {preset.leadTypes?.join(', ')?.replace(/_/g, ' ') || 'Any'}
                     </td>
-                    <td>{preset.minScore > 0 ? `≥ ${preset.minScore}` : 'None'}</td>
+                    <td className="tabular-nums">{preset.minScore > 0 ? `≥ ${preset.minScore}` : 'None'}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleDeletePreset(preset.id)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      <div style={{ display: 'inline-flex', gap: '8px' }}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={Play}
+                          onClick={onRunPreset}
+                          aria-label={`Run preset ${preset.name}`}
+                        >
+                          Run
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          icon={Trash2}
+                          onClick={() => setDeletePresetId(preset.id)}
+                          aria-label={`Delete preset ${preset.name}`}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -146,70 +192,79 @@ export default function PresetsSchedules({ onRunPreset }) {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {/* Recurring Schedules */}
-      <div className="card">
-        <div className="card-header">
-          <h2 className="card-title">
-            <Calendar size={18} color="var(--gold-primary)" /> Automated Scraper Schedules
-          </h2>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowScheduleModal(true)}>
-            <Plus size={14} /> New Schedule
-          </button>
-        </div>
-
+      <Card
+        title="Automated Scraper Schedules"
+        icon={Calendar}
+        subtitle="Cron-based background scraping jobs that discover and enrich new buyers automatically."
+        action={
+          <Button
+            variant="primary"
+            size="sm"
+            icon={Plus}
+            onClick={() => setShowScheduleModal(true)}
+          >
+            New Schedule
+          </Button>
+        }
+      >
         <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Schedule Name</th>
                 <th>Frequency (Cron)</th>
-                <th>Target Market</th>
-                <th>Category</th>
+                <th>Target Scope</th>
                 <th>Status</th>
+                <th>Last Run</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {schedules.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-dim)' }}>
-                    No automated recurring schedules active. Create one to run periodic scrapes.
+                  <td colSpan={6} style={{ padding: 0 }}>
+                    <EmptyState
+                      title="No automated schedules active"
+                      description="Create a recurring job to scrape new leads weekly or monthly."
+                    />
                   </td>
                 </tr>
               ) : (
                 schedules.map((schedule) => (
                   <tr key={schedule.id}>
-                    <td style={{ fontWeight: 600, color: '#FFF' }}>{schedule.name}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{schedule.name}</td>
                     <td>
-                      <code style={{ background: 'var(--bg-app)', padding: '3px 6px', borderRadius: '4px', fontSize: '12px' }}>
-                        {schedule.cronExpression}
-                      </code>
+                      <code>{schedule.cronExpression}</code>
                     </td>
                     <td>{schedule.city}, {schedule.country}</td>
-                    <td style={{ textTransform: 'capitalize' }}>
-                      {schedule.leadTypes?.join(', ')?.replace(/_/g, ' ')}
-                    </td>
                     <td>
-                      <button
-                        onClick={() => handleToggleSchedule(schedule.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        {schedule.enabled ? (
-                          <span className="badge badge-score-high">Active</span>
-                        ) : (
-                          <span className="badge badge-score-low">Paused</span>
-                        )}
-                      </button>
+                      <Badge variant={schedule.enabled ? 'success' : 'danger'}>
+                        {schedule.enabled ? 'Active' : 'Paused'}
+                      </Badge>
+                    </td>
+                    <td className="tabular-nums" style={{ color: 'var(--text-dim)', fontSize: 'var(--font-xs)' }}>
+                      {schedule.lastRunAt ? new Date(schedule.lastRunAt).toLocaleDateString() : 'Never'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleDeleteSchedule(schedule.id)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      <div style={{ display: 'inline-flex', gap: '8px' }}>
+                        <Button
+                          variant={schedule.enabled ? 'secondary' : 'primary'}
+                          size="sm"
+                          onClick={() => handleToggleSchedule(schedule.id)}
+                        >
+                          {schedule.enabled ? 'Pause' : 'Activate'}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          icon={Trash2}
+                          onClick={() => setDeleteScheduleId(schedule.id)}
+                          aria-label={`Delete schedule ${schedule.name}`}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -217,90 +272,110 @@ export default function PresetsSchedules({ onRunPreset }) {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {/* New Schedule Modal */}
-      {showScheduleModal && (
-        <div className="drawer-backdrop" onClick={() => setShowScheduleModal(false)}>
-          <div className="card" style={{ width: '480px', margin: 'auto', background: 'var(--bg-sidebar)' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '16px', color: '#FFF', marginBottom: '16px' }}>Configure Recurring Scraper Schedule</h3>
-            <form onSubmit={handleCreateSchedule}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Schedule Name</label>
-                  <input
-                    type="text"
-                    className="input"
-                    style={{ width: '100%' }}
-                    placeholder="e.g. Weekly Dubai Retailer Scrape"
-                    value={scheduleName}
-                    onChange={(e) => setScheduleName(e.target.value)}
-                    required
-                  />
-                </div>
+      <Modal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        title="Create Automated Scraping Schedule"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowScheduleModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              loading={creatingSchedule}
+              onClick={handleCreateSchedule}
+            >
+              Save Schedule
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleCreateSchedule} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <Field label="Schedule Name" required id="schedule-name">
+            <input
+              id="schedule-name"
+              className="input"
+              placeholder="e.g. Weekly Dubai Retailers Scrape"
+              value={scheduleName}
+              onChange={(e) => setScheduleName(e.target.value)}
+              required
+            />
+          </Field>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Cron Pattern (UTC)</label>
-                  <input
-                    type="text"
-                    className="input"
-                    style={{ width: '100%' }}
-                    placeholder="0 9 * * 1 (Weekly on Monday 9am)"
-                    value={cronExpression}
-                    onChange={(e) => setCronExpression(e.target.value)}
-                    required
-                  />
-                </div>
+          <Field
+            label="Cron Frequency Expression"
+            hint="Format: minute hour day-of-month month day-of-week (e.g. '0 9 * * 1' = Every Monday 9am)"
+            required
+            id="schedule-cron"
+          >
+            <input
+              id="schedule-cron"
+              className="input"
+              value={cronExpression}
+              onChange={(e) => setCronExpression(e.target.value)}
+              required
+            />
+          </Field>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Country</label>
-                    <input
-                      type="text"
-                      className="input"
-                      style={{ width: '100%' }}
-                      value={scheduleCountry}
-                      onChange={(e) => setScheduleCountry(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>City</label>
-                    <input
-                      type="text"
-                      className="input"
-                      style={{ width: '100%' }}
-                      value={scheduleCity}
-                      onChange={(e) => setScheduleCity(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Field label="Target Country" id="schedule-country">
+              <input
+                id="schedule-country"
+                className="input"
+                value={scheduleCountry}
+                onChange={(e) => setScheduleCountry(e.target.value)}
+              />
+            </Field>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Lead Category</label>
-                  <select
-                    className="select"
-                    style={{ width: '100%' }}
-                    value={scheduleLeadType}
-                    onChange={(e) => setScheduleLeadType(e.target.value)}
-                  >
-                    <option value="rug_retailer">Rug / Carpet Retailer</option>
-                    <option value="interior_designer">Interior Designer</option>
-                    <option value="architect">Architect Firm</option>
-                    <option value="hospitality">Hospitality Buyer</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowScheduleModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary btn-sm">Save Schedule</button>
-              </div>
-            </form>
+            <Field label="Target City" id="schedule-city">
+              <input
+                id="schedule-city"
+                className="input"
+                value={scheduleCity}
+                onChange={(e) => setScheduleCity(e.target.value)}
+              />
+            </Field>
           </div>
-        </div>
-      )}
+
+          <Field label="Target Buyer Category" id="schedule-category">
+            <Select
+              id="schedule-category"
+              value={scheduleLeadType}
+              onChange={(e) => setScheduleLeadType(e.target.value)}
+            >
+              <option value="rug_retailer">Rug Retailers</option>
+              <option value="rug_wholesaler">Rug Wholesalers</option>
+              <option value="interior_designer">Interior Designers</option>
+              <option value="interior_contractor">Fit-out Contractors</option>
+              <option value="architect">Architects</option>
+            </Select>
+          </Field>
+        </form>
+      </Modal>
+
+      {/* Confirm Delete Preset Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(deletePresetId)}
+        onClose={() => setDeletePresetId(null)}
+        onConfirm={handleDeletePreset}
+        title="Delete Search Preset"
+        message="Are you sure you want to delete this search preset?"
+        confirmText="Delete Preset"
+      />
+
+      {/* Confirm Delete Schedule Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteScheduleId)}
+        onClose={() => setDeleteScheduleId(null)}
+        onConfirm={handleDeleteSchedule}
+        title="Delete Automated Schedule"
+        message="Are you sure you want to delete this automated schedule? Recurring scraping jobs will stop immediately."
+        confirmText="Delete Schedule"
+      />
     </div>
   );
 }

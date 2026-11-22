@@ -11,8 +11,10 @@ const crypto = require('crypto');
 const env = require('../config/env');
 const logger = require('../config/logger');
 const BulkSendLog = require('../models/BulkSendLog');
+const OutreachLog = require('../models/OutreachLog');
 const OptOut = require('../models/OptOut');
 const Lead = require('../models/Lead');
+const followUpEngine = require('./followUp/followUpEngine');
 const { Op } = require('sequelize');
 
 class BulkSendService {
@@ -205,7 +207,7 @@ class BulkSendService {
     }
 
     const fromAddress = process.env.SMTP_FROM || env.SMTP_FROM || '"Knotiq Rugs" <info@knotiqrugs.com>';
-    const senderPhone = process.env.SENDER_PHONE || env.SENDER_PHONE || '+971 582549695';
+    const senderPhone = process.env.SENDER_PHONE || env.SENDER_PHONE || '+971 54 482 9117';
     const waClean = senderPhone.replace(/[^0-9]/g, '');
 
     const unsubscribeFooter = `\n\n---\nKnotiq Rugs | Handcrafted Luxury Carpets\nEmail: info@knotiqrugs.com | WhatsApp: ${senderPhone}\nTo unsubscribe, reply 'STOP'.`;
@@ -551,6 +553,22 @@ class BulkSendService {
                 { status: 'contacted', lastContactedAt: new Date() },
                 { where: { id: leadId } }
               );
+
+              try {
+                await OutreachLog.create({
+                  userId: job.userId || 'founder',
+                  leadId,
+                  channel: 'email',
+                  step: 'day1',
+                  messageSent: renderedBody,
+                  sentAt: new Date(),
+                  outcome: 'sent',
+                  recipient: rawEmail,
+                  providerMessageId: res.messageId
+                });
+
+                await followUpEngine.scheduleInitialFollowUps(job.userId || 'founder', leadId, 'email');
+              } catch (_) {}
             }
           } catch (dbErr) {
             logger.warn({ dbErr: dbErr.message }, 'Failed to persist BulkSendLog');
@@ -689,6 +707,22 @@ class BulkSendService {
                 { status: 'contacted', lastContactedAt: new Date() },
                 { where: { id: leadId } }
               );
+
+              try {
+                await OutreachLog.create({
+                  userId: job.userId || 'founder',
+                  leadId,
+                  channel: 'whatsapp',
+                  step: 'day1',
+                  messageSent: renderedBody,
+                  sentAt: new Date(),
+                  outcome: 'sent',
+                  recipient: cleanedPhone,
+                  providerMessageId: res.messageId
+                });
+
+                await followUpEngine.scheduleInitialFollowUps(job.userId || 'founder', leadId, 'whatsapp');
+              } catch (_) {}
             }
           } catch (dbErr) {
             logger.warn({ dbErr: dbErr.message }, 'Failed to persist BulkSendLog for WhatsApp');

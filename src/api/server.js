@@ -124,8 +124,16 @@ const outreachRouter = require('./routes/outreach');
 const optoutRouter = require('./routes/optout');
 const settingsRouter = require('./routes/settings');
 const bulkRouter = require('./routes/bulk-send');
+const callsRouter = require('./routes/calls');
+const notesRouter = require('./routes/notes');
+const followupsRouter = require('./routes/followups');
+const todayRouter = require('./routes/today');
 
 // Mount API routes
+app.use('/api/today', requireAuth, todayRouter);
+app.use('/api/calls', requireAuth, callsRouter);
+app.use('/api/notes', requireAuth, notesRouter);
+app.use('/api/follow-ups', requireAuth, followupsRouter);
 app.use('/api/leads', requireAuth, leadsRouter);
 app.use('/api/scrape', requireAuth, scrapeRouter);
 app.use('/api/presets', requireAuth, presetsRouter);

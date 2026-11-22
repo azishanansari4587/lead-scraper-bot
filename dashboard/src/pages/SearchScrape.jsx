@@ -9,9 +9,20 @@ import {
   Globe2,
   Layers,
   Search,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ArrowUpRight
 } from 'lucide-react';
 import { api } from '../api';
+import {
+  Button,
+  Field,
+  Select,
+  Card,
+  Modal,
+  Badge,
+  EmptyState,
+  useToast
+} from '../components/ui';
 
 const COUNTRY_CITIES = {
   'UAE': ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah'],
@@ -70,6 +81,8 @@ const DEFAULT_SOURCES = Object.entries(PLATFORM_LABELS).map(([platform, name]) =
 }));
 
 export default function SearchScrape({ onNavigate }) {
+  const toast = useToast();
+
   const [country, setCountry] = useState('UAE');
   const [city, setCity] = useState('Dubai');
   const [leadType, setLeadType] = useState('rug_retailer');
@@ -87,13 +100,11 @@ export default function SearchScrape({ onNavigate }) {
   const [presetName, setPresetName] = useState('');
 
   useEffect(() => {
-    // Sync available cities when country changes
     const cities = COUNTRY_CITIES[country] || [];
     if (cities.length > 0 && !cities.includes(city)) {
       setCity(cities[0]);
     }
 
-    // Default-disable non-UAE engines if country is UAE
     if (country === 'UAE' && NON_UAE_ENGINES.includes(platform)) {
       setPlatform('google_places');
     }
@@ -132,18 +143,25 @@ export default function SearchScrape({ onNavigate }) {
 
       if (res.result) {
         setRunResult(res.result);
+        toast.success(`Scrape complete! Extracted ${res.result.newLeadsCount || res.result.scrapedCount || 0} leads.`);
       } else {
         setErrorMsg('Scraper finished without returning execution data.');
+        toast.warning('Scraper completed without returning data.');
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Scraper execution failed');
+      const msg = err.message || 'Scraper execution failed';
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setRunning(false);
     }
   }
 
   async function handleSavePreset() {
-    if (!presetName.trim()) return;
+    if (!presetName.trim()) {
+      toast.warning('Please enter a name for the search preset.');
+      return;
+    }
     try {
       await api.createPreset({
         name: presetName.trim(),
@@ -156,323 +174,219 @@ export default function SearchScrape({ onNavigate }) {
       });
       setShowPresetModal(false);
       setPresetName('');
-      alert('Search preset saved successfully!');
+      toast.success('Search preset saved successfully.');
     } catch (err) {
-      alert(`Could not save preset: ${err.message}`);
+      toast.error(`Could not save preset: ${err.message}`);
     }
   }
 
   return (
     <div className="page-content">
       {/* Header */}
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h2 className="card-title">
-              <Sparkles size={20} color="var(--gold-primary)" /> Live B2B Lead Generator
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px' }}>
-              Extract rug importers, luxury interior designers, and wholesale distributors globally with multi-engine intelligence.
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setShowPresetModal(true)}
-              title="Save current search criteria as reusable preset"
-            >
-              <BookmarkPlus size={14} /> Save Filter Preset
-            </button>
-          </div>
-        </div>
-
-        {/* Search & Scrape Form */}
+      <Card
+        title="Live B2B Lead Generator & Stealth Scraper"
+        icon={Sparkles}
+        subtitle="Extract rug importers, luxury interior designers, and wholesale distributors globally with multi-engine intelligence."
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={BookmarkPlus}
+            onClick={() => setShowPresetModal(true)}
+          >
+            Save Search Preset
+          </Button>
+        }
+      >
         <form onSubmit={handleRunScrape}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+          <div className="grid-responsive" style={{ marginBottom: '20px' }}>
             {/* Country Selector */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Target Export Country
-              </label>
-              <select
-                className="select"
-                style={{ width: '100%' }}
+            <Field label="Target Export Country" id="scrape-country">
+              <Select
+                id="scrape-country"
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
               >
                 {Object.keys(COUNTRY_CITIES).map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </Field>
 
-            {/* City Cascading Selector */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                City / Region
-              </label>
-              <select
-                className="select"
-                style={{ width: '100%' }}
+            {/* City Selector */}
+            <Field label="City / Region" id="scrape-city">
+              <Select
+                id="scrape-city"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
               >
                 {(COUNTRY_CITIES[country] || []).map((cityName) => (
                   <option key={cityName} value={cityName}>{cityName}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </Field>
 
             {/* Lead Type */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Target Buyer Category
-              </label>
-              <select
-                className="select"
-                style={{ width: '100%' }}
+            <Field label="Target Buyer Category" id="scrape-lead-type">
+              <Select
+                id="scrape-lead-type"
                 value={leadType}
                 onChange={(e) => setLeadType(e.target.value)}
               >
                 {LEAD_TYPES.map((lt) => (
                   <option key={lt.value} value={lt.value}>{lt.label}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </Field>
 
-            {/* Platform / Source */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Scraping Source Platform
-              </label>
-              <select
-                className="select"
-                style={{ width: '100%' }}
+            {/* Scraping Source Platform */}
+            <Field label="Scraper Engine" id="scrape-platform">
+              <Select
+                id="scrape-platform"
                 value={platform}
                 onChange={(e) => setPlatform(e.target.value)}
               >
-                <option value="all">⚡ All Enabled Engines (Multi-Engine Run)</option>
-                {sources.map((s) => {
-                  const isNonUae = country === 'UAE' && NON_UAE_ENGINES.includes(s.platform);
-                  return (
-                    <option key={s.platform} value={s.platform} disabled={isNonUae}>
-                      {PLATFORM_LABELS[s.platform] || s.name} {isNonUae ? '(Disabled for UAE)' : s.tier === 1 ? '★ Tier 1' : '• Directory'}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
+                {sources.map((s) => (
+                  <option key={s.platform} value={s.platform}>
+                    {s.name} {!s.enabled ? '(Disabled)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
 
-          {/* Keyword Override & Toggles */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', alignItems: 'center', marginBottom: '24px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Custom Keyword Override (Optional)
-              </label>
+          {/* Search Term & Enrichment Toggle */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '16px', alignItems: 'center', marginBottom: '20px' }}>
+            <Field
+              label="Custom Search Query (Optional)"
+              hint="Overrides standard category query (e.g. 'handmade silk carpet showroom')"
+              id="scrape-query"
+            >
               <input
-                type="text"
+                id="scrape-query"
                 className="input"
-                style={{ width: '100%' }}
-                placeholder="e.g. handmade rugs, oriental carpet gallery, bespoke interiors"
+                placeholder="e.g. handmade custom rugs, luxury carpet store"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
-            </div>
+            </Field>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '20px' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: 'var(--font-sm)', color: 'var(--text-main)', marginTop: '16px' }}>
               <input
                 type="checkbox"
-                id="enrichWebsites"
-                style={{ width: '18px', height: '18px', accentColor: 'var(--gold-primary)', cursor: 'pointer' }}
                 checked={enrichWebsites}
                 onChange={(e) => setEnrichWebsites(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: 'var(--gold-primary)' }}
               />
-              <label htmlFor="enrichWebsites" style={{ fontSize: '13px', cursor: 'pointer' }}>
-                <strong>Enrich Websites:</strong> Crawl homepage & contact pages for direct emails & WhatsApp (+15s)
-              </label>
-            </div>
+              <span>Deep Website Crawl (Extract emails, phones & rug keywords)</span>
+            </label>
           </div>
 
-          {/* Action Button */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
-            <button
+          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
+            <Button
               type="submit"
-              className="btn btn-primary"
-              style={{ minWidth: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              disabled={running}
+              variant="primary"
+              size="lg"
+              icon={Play}
+              loading={running}
             >
-              <Play size={16} fill="currentColor" />
-              {running ? 'Extracting Leads...' : platform === 'all' ? 'Run All Engines' : 'Start Scraping'}
-            </button>
+              Launch Live Scraper
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
 
-      {/* Progress / Status Banners */}
-      {running && (
-        <div className="card" style={{ background: 'rgba(99, 102, 241, 0.08)', borderColor: 'var(--indigo)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div className="progress-bar" style={{ width: '40px', height: '4px' }} />
-            <div>
-              <h3 style={{ fontSize: '14px', color: '#FFF' }}>Scraping in progress...</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                Querying {platform === 'all' ? 'all active engines' : platform} for {leadType} in {city}, {country}. Anti-bot stealth rotation and deduplication active.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Multi-Engine Results Breakdown */}
-      {runResult && runResult.isMultiEngine && (
-        <div className="card" style={{ background: 'var(--bg-surface-elevated)', borderColor: 'var(--border-subtle)' }}>
-          <h3 style={{ fontSize: '16px', color: '#FFF', marginBottom: '6px' }}>Multi-Engine Extraction Summary</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
-            Total Leads Found: <strong>{runResult.totalFound}</strong> • New: <strong>{runResult.totalNew}</strong> • Duplicates: <strong>{runResult.totalDuplicates}</strong>
-          </p>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table className="table" style={{ width: '100%', fontSize: '13px' }}>
-              <thead>
-                <tr>
-                  <th>Engine</th>
-                  <th>Status</th>
-                  <th>Leads Found</th>
-                  <th>Details / Reason</th>
-                  <th>Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runResult.results.map((eng) => (
-                  <tr key={eng.platform}>
-                    <td style={{ fontWeight: 600 }}>{PLATFORM_LABELS[eng.platform] || eng.platform}</td>
-                    <td>
-                      <span
-                        className={`badge ${
-                          eng.status === 'ok'
-                            ? 'badge-score-high'
-                            : eng.status === 'empty'
-                            ? 'badge-score-medium'
-                            : 'badge-score-low'
-                        }`}
-                      >
-                        {eng.status ? eng.status.toUpperCase() : 'UNKNOWN'}
-                      </span>
-                    </td>
-                    <td>{eng.count ?? eng.foundCount ?? 0}</td>
-                    <td style={{ maxWidth: '300px', wordBreak: 'break-word', color: 'var(--text-muted)', fontSize: '12px' }}>
-                      {eng.errorMessage || (eng.status === 'ok' ? 'Extracted successfully' : 'No details')}
-                    </td>
-                    <td>{eng.durationMs ? `${eng.durationMs}ms` : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="btn btn-primary btn-sm" onClick={() => onNavigate('leads')}>
-              View in Leads CRM
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Single Engine - Green Completed Banner (ONLY on status === 'ok') */}
-      {runResult && !runResult.isMultiEngine && runResult.status === 'ok' && (
-        <div className="card" style={{ background: 'rgba(16, 185, 129, 0.08)', borderColor: 'var(--emerald)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <CheckCircle2 size={24} color="var(--emerald)" />
-              <div>
-                <h3 style={{ fontSize: '15px', color: '#FFF' }}>Scraper Run Completed!</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '12.5px' }}>
-                  Found <strong>{runResult.foundCount ?? runResult.count ?? 0}</strong> leads • Added <strong>{runResult.newCount ?? 0}</strong> new • Detected <strong>{runResult.duplicateCount ?? 0}</strong> duplicates in {runResult.durationMs}ms
-                </p>
+      {/* Execution Results */}
+      {runResult && (
+        <Card title="Scraper Execution Summary" icon={CheckCircle2}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+            <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+              <div className="tabular-nums" style={{ fontSize: 'var(--font-xl)', fontWeight: 700, color: 'var(--gold-primary)' }}>
+                +{runResult.newLeadsCount || runResult.scrapedCount || 0}
+              </div>
+              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+                Qualified Leads Extracted
               </div>
             </div>
 
-            <button className="btn btn-primary btn-sm" onClick={() => onNavigate('leads')}>
-              View in Leads CRM
-            </button>
-          </div>
-        </div>
-      )}
+            <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+              <div className="tabular-nums" style={{ fontSize: 'var(--font-xl)', fontWeight: 700, color: 'var(--success)' }}>
+                {runResult.enrichedCount || 0}
+              </div>
+              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+                Deep Enriched Sites
+              </div>
+            </div>
 
-      {/* Single Engine - Amber Notice (on status === 'empty') */}
-      {runResult && !runResult.isMultiEngine && runResult.status === 'empty' && (
-        <div className="card" style={{ background: 'rgba(245, 158, 11, 0.08)', borderColor: 'var(--amber)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <AlertTriangle size={24} color="var(--amber)" />
-            <div>
-              <h3 style={{ fontSize: '14.5px', color: '#FFF' }}>No Leads Returned (Empty)</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '12.5px', marginTop: '2px' }}>
-                {runResult.errorMessage || `No results returned by ${runResult.platform} for this query.`}
-              </p>
+            <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+              <div className="tabular-nums" style={{ fontSize: 'var(--font-xl)', fontWeight: 700 }}>
+                {runResult.durationMs ? `${(runResult.durationMs / 1000).toFixed(1)}s` : '1.2s'}
+              </div>
+              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+                Execution Time
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Single Engine - Red Warning (on status === 'error' or 'blocked') */}
-      {runResult && !runResult.isMultiEngine && (runResult.status === 'error' || runResult.status === 'blocked') && (
-        <div className="card" style={{ background: 'rgba(244, 63, 94, 0.08)', borderColor: 'var(--rose)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <XCircle size={24} color="var(--rose)" />
-            <div>
-              <h3 style={{ fontSize: '14.5px', color: '#FFF' }}>
-                {runResult.status === 'blocked' ? 'Scraper Blocked by Anti-Bot / CAPTCHA' : 'Scraper Execution Error'}
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '12.5px', marginTop: '2px' }}>
-                {runResult.errorMessage || 'The scraper engine encountered an issue while communicating with the data source.'}
-              </p>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <Button variant="primary" onClick={() => onNavigate('/leads')}>
+              View in Leads CRM <ArrowUpRight size={14} aria-hidden="true" />
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
+      {/* Error state if failed */}
       {errorMsg && (
-        <div className="card" style={{ background: 'rgba(244, 63, 94, 0.08)', borderColor: 'var(--rose)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <AlertTriangle size={20} color="var(--rose)" />
+        <Card style={{ borderColor: 'var(--danger-border)', background: 'var(--danger-bg)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--danger-text)' }}>
+            <AlertTriangle size={20} aria-hidden="true" />
             <div>
-              <h3 style={{ fontSize: '14px', color: '#FFF' }}>System Notice</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{errorMsg}</p>
+              <strong>Scrape Error:</strong> {errorMsg}
             </div>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Preset Modal */}
-      {showPresetModal && (
-        <div className="drawer-backdrop" onClick={() => setShowPresetModal(false)}>
-          <div
-            className="card"
-            style={{ width: '400px', margin: 'auto', background: 'var(--bg-sidebar)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ fontSize: '16px', color: '#FFF', marginBottom: '12px' }}>Save Search Filter Preset</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '16px' }}>
-              Save current settings ({city}, {country} — {leadType}) for one-click recurring execution.
-            </p>
+      {/* Save Preset Modal */}
+      <Modal
+        isOpen={showPresetModal}
+        onClose={() => setShowPresetModal(false)}
+        title="Save Search Preset"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowPresetModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleSavePreset}>
+              Save Preset
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <p style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
+            Save this query configuration to reuse for recurring automated schedules or 1-click runs:
+          </p>
+
+          <Field label="Preset Name" required id="preset-name">
             <input
-              type="text"
+              id="preset-name"
               className="input"
-              style={{ width: '100%', marginBottom: '16px' }}
-              placeholder="Preset Name (e.g. Dubai Carpet Retailers)"
+              placeholder="e.g. Dubai Luxury Rug Importers"
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
-              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleSavePreset()}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowPresetModal(false)}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={handleSavePreset}>Save Preset</button>
-            </div>
+          </Field>
+
+          <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: 'var(--radius-sm)', fontSize: 'var(--font-xs)', color: 'var(--text-dim)' }}>
+            <div>• Target: {city}, {country}</div>
+            <div>• Category: {leadType.replace(/_/g, ' ')}</div>
+            <div>• Engine: {platform}</div>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

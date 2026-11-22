@@ -3,25 +3,39 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import { ToastProvider } from './components/ui/Toast';
-import Overview from './pages/Overview';
-import SearchScrape from './pages/SearchScrape';
+
+import Today from './pages/Today';
 import Leads from './pages/Leads';
+import Calls from './pages/Calls';
+import Notes from './pages/Notes';
+import Calendar from './pages/Calendar';
+import Marketing from './pages/Marketing';
+import Google from './pages/Google';
+import Reports from './pages/Reports';
+import SearchScrape from './pages/SearchScrape';
 import PresetsSchedules from './pages/PresetsSchedules';
 import Sources from './pages/Sources';
 import Exports from './pages/Exports';
 import Settings from './pages/Settings';
 import BulkSend from './pages/BulkSend';
+
 import { api } from './api';
 
 const ROUTE_TITLES = {
-  '/overview': 'Overview',
-  '/search': 'Search & Scrape',
-  '/leads': 'Leads CRM',
-  '/bulk': 'Bulk Outreach',
-  '/presets': 'Presets & Schedules',
-  '/sources': 'Scraper Engines',
-  '/exports': 'Data Exports',
-  '/settings': 'Settings & Health'
+  '/today': 'Today Command Center',
+  '/leads': 'Leads Pipeline & Outreach',
+  '/calls': 'Call System & Buyer Scripts',
+  '/notes': 'Founder Notebook',
+  '/calendar': 'Calendar & Meeting Scheduler',
+  '/marketing': 'Marketing & Multi-Channel Campaigns',
+  '/search': 'Search & Scrape Discovery',
+  '/bulk': 'Bulk Outreach & Sequences',
+  '/google': 'Google Search Console & Business Profile',
+  '/reports': 'Reports & Financial Intelligence',
+  '/presets': 'Presets & Automated Schedules',
+  '/sources': 'Scraper Engines & Connectors',
+  '/exports': 'Data Exports & Reports',
+  '/settings': 'Settings, Targets & System Health'
 };
 
 function DashboardLayout() {
@@ -57,16 +71,22 @@ function DashboardLayout() {
 
         <main id="main-content">
           <Routes>
-            <Route path="/" element={<Navigate to="/overview" replace />} />
-            <Route path="/overview" element={<Overview onNavigate={navigate} />} />
-            <Route path="/search" element={<SearchScrape onNavigate={navigate} />} />
+            <Route path="/" element={<Navigate to="/today" replace />} />
+            <Route path="/today" element={<Today />} />
             <Route path="/leads" element={<Leads onExportRequested={() => navigate('/exports')} />} />
+            <Route path="/calls" element={<Calls />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/marketing" element={<Marketing />} />
+            <Route path="/google" element={<Google />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/search" element={<SearchScrape onNavigate={navigate} />} />
             <Route path="/bulk" element={<BulkSend />} />
             <Route path="/presets" element={<PresetsSchedules onRunPreset={() => navigate('/search')} />} />
             <Route path="/sources" element={<Sources />} />
             <Route path="/exports" element={<Exports />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<Navigate to="/overview" replace />} />
+            <Route path="*" element={<Navigate to="/today" replace />} />
           </Routes>
         </main>
       </div>

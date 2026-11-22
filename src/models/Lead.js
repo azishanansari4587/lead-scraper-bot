@@ -140,8 +140,52 @@ const Lead = sequelize.define('Lead', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  buyerType: {
+    type: DataTypes.STRING(50),
+    defaultValue: 'unclassified'
+  },
+  buyerTypeConfidence: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0
+  },
+  buyerTypeReason: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  buyerTypeManual: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  priority: {
+    type: DataTypes.ENUM('hot', 'warm', 'cold'),
+    defaultValue: 'warm'
+  },
+  assignedTo: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  detail: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  project: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  platform: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  sizes: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  optedOut: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   status: {
-    type: DataTypes.ENUM('new', 'contacted', 'replied', 'won', 'lost', 'not_interested'),
+    type: DataTypes.ENUM('new', 'contacted', 'replied', 'sample_sent', 'quotation', 'negotiation', 'won', 'lost', 'repeat_client', 'not_interested'),
     defaultValue: 'new'
   },
   notes: {
@@ -187,10 +231,19 @@ const Lead = sequelize.define('Lead', {
       fields: ['userId', 'leadType']
     },
     {
+      fields: ['userId', 'buyerType']
+    },
+    {
+      fields: ['userId', 'priority']
+    },
+    {
       fields: ['userId', 'score']
     },
     {
       fields: ['userId', 'status']
+    },
+    {
+      fields: ['userId', 'nextFollowUpAt']
     }
   ]
 });

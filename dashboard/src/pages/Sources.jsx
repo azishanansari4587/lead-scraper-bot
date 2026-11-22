@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, Zap, Power, PlayCircle, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import {
+  Layers,
+  Zap,
+  Power,
+  PlayCircle,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  RefreshCw
+} from 'lucide-react';
 import { api } from '../api';
+import {
+  Button,
+  Card,
+  Badge,
+  useToast
+} from '../components/ui';
 
 const DEFAULT_SOURCES = [
   { platform: 'google_places', name: 'Google Places (Official Places API New)', enabled: true, rateLimitMs: 500, tier: 1 },
@@ -18,6 +33,8 @@ const DEFAULT_SOURCES = [
 ];
 
 export default function Sources() {
+  const toast = useToast();
+
   const [sources, setSources] = useState(DEFAULT_SOURCES);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState({});
@@ -35,7 +52,7 @@ export default function Sources() {
         setSources(res.sources);
       }
     } catch (err) {
-      console.error('Failed to load sources', err);
+      console.warn('Using default sources catalog');
     } finally {
       setLoading(false);
     }
@@ -47,8 +64,9 @@ export default function Sources() {
       setSources((prev) =>
         prev.map((s) => (s.platform === platform ? { ...s, enabled: res.enabled } : s))
       );
+      toast.success(`Engine "${platform}" is now ${res.enabled ? 'Active' : 'Disabled'}.`);
     } catch (err) {
-      alert(`Failed to toggle source: ${err.message}`);
+      toast.error(`Failed to toggle source: ${err.message}`);
     }
   }
 
@@ -57,11 +75,17 @@ export default function Sources() {
       setTesting((prev) => ({ ...prev, [platform]: true }));
       const res = await api.testSource(platform, { keyword: 'rug store', city: 'Dubai', country: 'UAE' });
       setTestResults((prev) => ({ ...prev, [platform]: res.result }));
+      if (res.result?.status === 'ok') {
+        toast.success(`Engine "${platform}" responded successfully.`);
+      } else {
+        toast.warning(`Engine "${platform}" returned: ${res.result?.status}`);
+      }
     } catch (err) {
       setTestResults((prev) => ({
         ...prev,
         [platform]: { status: 'error', errorMessage: err.message, count: 0, durationMs: 0 }
       }));
+      toast.error(`Engine test failed: ${err.message}`);
     } finally {
       setTesting((prev) => ({ ...prev, [platform]: false }));
     }
@@ -69,19 +93,12 @@ export default function Sources() {
 
   return (
     <div className="page-content">
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h2 className="card-title">
-              <Layers size={18} color="var(--gold-primary)" /> Registered Scraper Source Engines
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px' }}>
-              Multi-source scraping network with automatic failover, stealth user-agent rotation, and live engine diagnostics.
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+      <Card
+        title="Registered Scraper Source Engines"
+        icon={Layers}
+        subtitle="Multi-source scraping network with automatic failover, stealth user-agent rotation, and live engine diagnostics."
+      >
+        <div className="grid-responsive" style={{ marginTop: '16px' }}>
           {sources.map((s) => {
             const diag = testResults[s.platform];
             const isTesting = testing[s.platform];
@@ -92,55 +109,57 @@ export default function Sources() {
                 className="card"
                 style={{
                   background: 'var(--bg-surface-elevated)',
-                  borderColor: s.enabled ? 'var(--border-subtle)' : 'rgba(244, 63, 94, 0.2)'
+                  borderColor: s.enabled ? 'var(--border-subtle)' : 'var(--danger-border)'
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#FFF' }}>{s.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: '2px' }}>
+                    <h3 style={{ fontSize: 'var(--font-md)', fontWeight: 700, color: 'var(--text-heading)' }}>
+                      {s.name}
+                    </h3>
+                    <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)', marginTop: '2px' }}>
                       Engine ID: <code>{s.platform}</code>
                     </div>
                   </div>
 
-                  <span className={`badge ${s.enabled ? 'badge-score-high' : 'badge-score-low'}`}>
+                  <Badge variant={s.enabled ? 'success' : 'danger'}>
                     {s.enabled ? 'Active' : 'Disabled'}
-                  </span>
+                  </Badge>
                 </div>
 
-                {/* Diagnostics result if tested */}
+                {/* Diagnostics test result */}
                 {diag && (
                   <div
                     style={{
-                      padding: '8px 10px',
-                      borderRadius: '6px',
-                      fontSize: '11.5px',
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--font-xs)',
                       marginBottom: '12px',
                       background:
                         diag.status === 'ok'
-                          ? 'rgba(16, 185, 129, 0.1)'
+                          ? 'var(--success-bg)'
                           : diag.status === 'empty'
-                          ? 'rgba(245, 158, 11, 0.1)'
-                          : 'rgba(244, 63, 94, 0.1)',
+                          ? 'var(--warning-bg)'
+                          : 'var(--danger-bg)',
                       border: `1px solid ${
                         diag.status === 'ok'
-                          ? 'rgba(16, 185, 129, 0.3)'
+                          ? 'var(--success-border)'
                           : diag.status === 'empty'
-                          ? 'rgba(245, 158, 11, 0.3)'
-                          : 'rgba(244, 63, 94, 0.3)'
+                          ? 'var(--warning-border)'
+                          : 'var(--danger-border)'
                       }`,
                       color:
                         diag.status === 'ok'
-                          ? 'var(--emerald)'
+                          ? 'var(--success)'
                           : diag.status === 'empty'
-                          ? 'var(--amber)'
-                          : 'var(--rose)'
+                          ? 'var(--warning-text)'
+                          : 'var(--danger-text)'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-                      {diag.status === 'ok' && <CheckCircle2 size={13} />}
-                      {diag.status === 'empty' && <AlertTriangle size={13} />}
-                      {(diag.status === 'error' || diag.status === 'blocked') && <XCircle size={13} />}
+                      {diag.status === 'ok' && <CheckCircle2 size={13} aria-hidden="true" />}
+                      {diag.status === 'empty' && <AlertTriangle size={13} aria-hidden="true" />}
+                      {(diag.status === 'error' || diag.status === 'blocked') && <XCircle size={13} aria-hidden="true" />}
                       <span>Diagnostic: {diag.status.toUpperCase()}</span>
                       {diag.durationMs ? <span style={{ opacity: 0.7 }}>({diag.durationMs}ms)</span> : null}
                     </div>
@@ -150,43 +169,45 @@ export default function Sources() {
                       </div>
                     )}
                     {diag.count > 0 && (
-                      <div style={{ marginTop: '2px', fontSize: '11px', color: 'var(--emerald)' }}>
-                        Successfully extracted {diag.count} leads
+                      <div style={{ marginTop: '2px', fontSize: '11px', color: 'var(--success)' }}>
+                        Extracted {diag.count} leads
                       </div>
                     )}
                   </div>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 'var(--font-xs)', color: 'var(--text-muted)', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Zap size={14} color="var(--gold-primary)" />
-                    <span>Tier {s.tier} • {s.rateLimitMs}ms</span>
+                    <Zap size={14} color="var(--gold-primary)" aria-hidden="true" />
+                    <span>Tier {s.tier || 1} • {s.rateLimitMs || 1500}ms delay</span>
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      className="btn btn-sm btn-secondary"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={isTesting}
                       onClick={() => handleTest(s.platform)}
-                      disabled={isTesting}
-                      title="Run a quick connectivity test"
+                      aria-label={`Test ${s.name}`}
                     >
-                      {isTesting ? <RefreshCw size={12} className="spin" /> : <PlayCircle size={12} color="var(--gold-primary)" />}
-                      {isTesting ? 'Testing...' : 'Test Engine'}
-                    </button>
+                      Test
+                    </Button>
 
-                    <button
-                      className={`btn btn-sm ${s.enabled ? 'btn-secondary' : 'btn-primary'}`}
+                    <Button
+                      variant={s.enabled ? 'danger' : 'secondary'}
+                      size="sm"
+                      icon={Power}
                       onClick={() => handleToggle(s.platform)}
                     >
-                      <Power size={12} /> {s.enabled ? 'Disable' : 'Enable'}
-                    </button>
+                      {s.enabled ? 'Disable' : 'Enable'}
+                    </Button>
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

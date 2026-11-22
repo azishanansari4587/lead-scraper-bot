@@ -3,6 +3,7 @@ const { Lead, ScraperRun, OptOut } = require('../models');
 const logger = require('../config/logger');
 const { generateDedupeKey, stringSimilarity, mergeLeadData } = require('../services/dedupe');
 const { calculateLeadScore } = require('../services/scoring');
+const { classifyByRules } = require('../services/classification/buyerClassifier');
 
 const GooglePlacesSource = require('./GooglePlacesSource');
 const GoogleMapsScraper = require('./GoogleMapsScraper');
@@ -163,11 +164,15 @@ class ScraperManager {
       return { status: 'duplicate', lead: existingLead };
     } else {
       const scoreResult = calculateLeadScore(rawLead);
+      const classification = classifyByRules(rawLead);
       const created = await Lead.create({
         ...rawLead,
         source: rawLead.source || context.platform || 'manual',
         score: scoreResult.score,
         scoreReason: scoreResult.scoreReason,
+        buyerType: rawLead.buyerType || classification.buyerType,
+        buyerTypeConfidence: classification.confidence,
+        buyerTypeReason: classification.reason,
         userId,
         dedupeKey,
         firstSeenAt: new Date(),

@@ -17,7 +17,12 @@ const STATUS_MAP = {
   new: { label: 'New Lead', variant: 'info' },
   contacted: { label: 'Contacted', variant: 'warning' },
   replied: { label: 'Replied', variant: 'primary' },
+  sample_sent: { label: 'Sample Sent', variant: 'info' },
+  quotation: { label: 'Quotation', variant: 'warning' },
+  negotiation: { label: 'Negotiation', variant: 'primary' },
   won: { label: 'Won Deal', variant: 'success' },
+  lost: { label: 'Lost', variant: 'danger' },
+  repeat_client: { label: 'Repeat Client', variant: 'success' },
   not_interested: { label: 'Not Interested', variant: 'danger' }
 };
 

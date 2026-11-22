@@ -5,8 +5,10 @@
 const express = require('express');
 const OutreachTemplate = require('../../models/OutreachTemplate');
 const Lead = require('../../models/Lead');
+const OutreachLog = require('../../models/OutreachLog');
 const outreachHelper = require('../../services/outreach/outreachHelper');
 const bulkSendService = require('../../services/bulkSendService');
+const followUpEngine = require('../../services/followUp/followUpEngine');
 const env = require('../../config/env');
 
 const router = express.Router();
@@ -127,11 +129,13 @@ router.post('/draft', async (req, res, next) => {
  */
 router.post('/send-direct', async (req, res, next) => {
   try {
-    const { leadId, channel = 'email', subject, body, attachments = [], dryRun } = req.body;
+    const { leadId, channel = 'email', subject, body, message, attachments = [], dryRun } = req.body;
+    const messageContent = (typeof body === 'string' && body.trim()) ? body.trim() : (typeof message === 'string' ? message.trim() : '');
+
     if (!leadId) {
       return res.status(400).json({ error: 'ValidationError', message: 'leadId is required' });
     }
-    if (!body || typeof body !== 'string' || body.trim() === '') {
+    if (!messageContent) {
       return res.status(400).json({ error: 'ValidationError', message: 'Message body cannot be empty' });
     }
 
@@ -141,30 +145,35 @@ router.post('/send-direct', async (req, res, next) => {
     }
 
     let result;
+    let recipientTarget = '';
+
     if (channel === 'email') {
       const recipient = lead.email;
       if (!recipient) {
         return res.status(400).json({ error: 'ValidationError', message: 'Lead does not have a valid email address' });
       }
+      recipientTarget = recipient;
 
       result = await bulkSendService.sendEmail({
         to: recipient,
         subject: subject || 'Knotiq Rugs - Partnership & Catalogue',
-        body,
+        body: messageContent,
         lead,
         attachments,
         dryRun: dryRun !== undefined ? dryRun : env.DRY_RUN
       });
     } else {
-      const rawPhone = lead.phone || lead.whatsapp;
-      const phoneRes = bulkSendService.cleanPhone(rawPhone);
+      const rawPhone = lead.whatsapp || lead.phone;
+      const defaultCountry = (lead.country && lead.country.toLowerCase().includes('india')) ? '91' : (env.DEFAULT_COUNTRY_CODE || '971');
+      const phoneRes = bulkSendService.cleanPhone(rawPhone, defaultCountry);
       if (!phoneRes.valid) {
         return res.status(400).json({ error: 'ValidationError', message: `Invalid phone number: ${phoneRes.reason}` });
       }
+      recipientTarget = phoneRes.phone;
 
       result = await bulkSendService.sendWhatsApp({
         to: phoneRes.phone,
-        message: body,
+        message: messageContent,
         lead,
         attachments,
         dryRun: dryRun !== undefined ? dryRun : env.DRY_RUN
@@ -177,6 +186,37 @@ router.post('/send-direct', async (req, res, next) => {
         status: 'contacted',
         lastContactedAt: new Date()
       });
+
+      // Persist to OutreachLog & BulkSendLog
+      try {
+        await OutreachLog.create({
+          userId: req.userId,
+          leadId: lead.id,
+          channel,
+          step: 'day1',
+          messageSent: messageContent,
+          sentAt: new Date(),
+          outcome: 'sent',
+          recipient: recipientTarget,
+          providerMessageId: result.messageId
+        });
+
+        const BulkSendLog = require('../../models/BulkSendLog');
+        await BulkSendLog.create({
+          jobId: `direct_${Date.now()}`,
+          leadId: lead.id,
+          recipient: recipientTarget,
+          channel,
+          businessName: lead.businessName,
+          status: 'sent',
+          details: { direct: true, messageId: result.messageId }
+        });
+
+        // Auto-schedule Day 4 and Day 7 follow-ups
+        await followUpEngine.scheduleInitialFollowUps(req.userId, lead.id, channel);
+      } catch (logErr) {
+        // non-blocking
+      }
     }
 
     res.json({
@@ -194,7 +234,7 @@ router.post('/send-direct', async (req, res, next) => {
  */
 router.post('/record-sent', async (req, res, next) => {
   try {
-    const { leadId, channel = 'email' } = req.body;
+    const { leadId, channel = 'email', messageSent } = req.body;
     if (!leadId) {
       return res.status(400).json({ error: 'ValidationError', message: 'leadId is required' });
     }
@@ -210,9 +250,25 @@ router.post('/record-sent', async (req, res, next) => {
       lastContactedAt: new Date()
     });
 
+    try {
+      await OutreachLog.create({
+        userId: req.userId,
+        leadId: lead.id,
+        channel,
+        step: 'day1',
+        messageSent: messageSent || 'Outreach recorded manually',
+        sentAt: new Date(),
+        outcome: 'sent',
+        recipient: channel === 'whatsapp' ? (lead.whatsapp || lead.phone) : lead.email
+      });
+
+      // Auto-schedule Day 4 and Day 7 follow-ups
+      await followUpEngine.scheduleInitialFollowUps(req.userId, lead.id, channel);
+    } catch (_) {}
+
     res.json({
       success: true,
-      message: 'Outreach recorded and lead status updated to contacted'
+      message: 'Outreach recorded and Day 4/Day 7 follow-ups scheduled'
     });
   } catch (err) {
     next(err);

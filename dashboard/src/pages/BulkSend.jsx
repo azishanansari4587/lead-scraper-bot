@@ -12,23 +12,31 @@ import {
   Lock,
   Eye,
   EyeOff,
-  KeyRound,
-  Loader2,
   Database,
-  FileSpreadsheet,
   StopCircle,
-  Info,
   CheckSquare,
   Square,
   ShieldCheck,
   Search,
-  Filter,
   Paperclip,
   FileText
 } from 'lucide-react';
 import { api } from '../api';
+import {
+  Button,
+  Field,
+  Select,
+  Textarea,
+  Card,
+  Modal,
+  Badge,
+  EmptyState,
+  useToast
+} from '../components/ui';
 
 export default function BulkSend() {
+  const toast = useToast();
+
   // Auth state
   const [authPassword, setAuthPassword] = useState(
     localStorage.getItem('bulk_auth_password') || ''
@@ -48,23 +56,23 @@ export default function BulkSend() {
   const [uploadFileName, setUploadFileName] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
 
-  // Selected lead IDs (set of IDs)
+  // Selected lead IDs
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   // Channels: 'email' | 'whatsapp' | 'both'
-  const [channelMode, setChannelMode] = useState('both'); // 'email', 'whatsapp', 'both'
+  const [channelMode, setChannelMode] = useState('both');
 
   // Message fields
   const [subject, setSubject] = useState('Trade Partnership: Handmade Luxury Rugs for {company}');
   const [message, setMessage] = useState(
-    `Hello {name} Team,\n\nWe love your design projects at {company}. At Knotiq Rugs, we are direct manufacturers of artisan hand-knotted and hand-tufted rugs in India, supplying luxury interior designers and boutique showrooms worldwide.\n\nWe offer bespoke custom sizing, yarn matching, and direct trade pricing without intermediary markups.\n\nCould I send over our digital trade catalog and complimentary yarn sample kit for your upcoming projects?\n\nWarm regards,\nExport Team | Knotiq Rugs`
+    `Hello {name} Team,\n\nWe admire your design projects at {company}. At Knotiq Rugs, we are direct manufacturers of artisan hand-knotted and hand-tufted rugs in India, supplying luxury interior designers and boutique showrooms worldwide.\n\nWe offer bespoke custom sizing, yarn matching, and direct trade pricing without intermediary markups.\n\nCould I send over our digital trade catalog and complimentary yarn sample kit for your upcoming projects?\n\nWarm regards,\nExport Team | Knotiq Rugs`
   );
   const [useTemplate, setUseTemplate] = useState(false);
   const [skipAlreadySent, setSkipAlreadySent] = useState(true);
   const [delayMs, setDelayMs] = useState(3000);
   const [dryRun, setDryRun] = useState(false);
 
-  // Attachments (PDFs & Images)
+  // Attachments
   const [attachments, setAttachments] = useState([]);
   const [uploadingAtt, setUploadingAtt] = useState(false);
 
@@ -99,7 +107,7 @@ export default function BulkSend() {
     if (!trimmed) {
       setIsAuthenticated(false);
       setShowPasswordModal(true);
-      setAuthError('Kripya apna BULK_PASSWORD enter karein (.env file mein configured hai).');
+      setAuthError('Please enter your BULK_PASSWORD (configured in your .env file).');
       return;
     }
 
@@ -111,7 +119,7 @@ export default function BulkSend() {
       await api.verifyBulkAuth(trimmed);
       localStorage.setItem('bulk_auth_password', trimmed);
       setIsAuthenticated(true);
-      setAuthSuccess('✅ Password verified! Bulk Send access granted.');
+      setAuthSuccess('Password verified. Bulk outreach access granted.');
       setAuthError('');
       loadDbLeads();
       loadDailyStats();
@@ -123,7 +131,7 @@ export default function BulkSend() {
       setIsAuthenticated(false);
       setShowPasswordModal(true);
       const serverMsg = err.data?.message || err.message;
-      setAuthError(serverMsg ? `❌ ${serverMsg}` : '❌ Invalid BULK_PASSWORD. Please check your .env file.');
+      setAuthError(serverMsg ? `${serverMsg}` : 'Invalid BULK_PASSWORD. Please verify your environment configuration.');
       setAuthSuccess('');
     } finally {
       setAuthLoading(false);
@@ -135,12 +143,11 @@ export default function BulkSend() {
     try {
       const res = await api.getBulkLeads({ limit: 300 });
       setDbLeads(res.leads || []);
-      // Pre-select leads that have email or phone
       const initialSelected = new Set();
       (res.leads || []).forEach((l) => initialSelected.add(l.id));
       setSelectedIds(initialSelected);
     } catch (err) {
-      console.error('Error loading DB leads:', err);
+      toast.error('Failed to load database leads for outreach.');
     } finally {
       setLoadingLeads(false);
     }
@@ -171,6 +178,9 @@ export default function BulkSend() {
             setPollingActive(false);
             clearInterval(pollTimerRef.current);
             loadDailyStats();
+            if (res.job.status === 'completed') {
+              toast.success(`Bulk campaign finished. ${res.job.sent} messages delivered.`);
+            }
           }
         }
       } catch (err) {
@@ -201,23 +211,22 @@ export default function BulkSend() {
         const ids = new Set();
         (res.leads || []).forEach((l) => ids.add(l.id));
         setSelectedIds(ids);
+        toast.success(`Imported ${res.leads?.length || 0} leads from "${file.name}".`);
       }
     } catch (err) {
-      alert(`File upload error: ${err.message}`);
+      toast.error(`File upload error: ${err.message}`);
     } finally {
       setLoadingLeads(false);
     }
   };
 
-  // Active lead pool
   const currentLeadPool = leadSource === 'db' ? dbLeads : uploadedLeads;
 
-  // Filter leads by search
   const filteredLeads = currentLeadPool.filter((lead) => {
     if (!searchFilter.trim()) return true;
     const q = searchFilter.toLowerCase();
     return (
-      (lead.name || '').toLowerCase().includes(q) ||
+      (lead.name || lead.businessName || '').toLowerCase().includes(q) ||
       (lead.company || '').toLowerCase().includes(q) ||
       (lead.email || '').toLowerCase().includes(q) ||
       (lead.phone || '').toLowerCase().includes(q) ||
@@ -225,7 +234,6 @@ export default function BulkSend() {
     );
   });
 
-  // Select / Deselect All
   const handleToggleSelectAll = () => {
     if (selectedIds.size === filteredLeads.length) {
       setSelectedIds(new Set());
@@ -238,31 +246,24 @@ export default function BulkSend() {
 
   const handleToggleLead = (id) => {
     const next = new Set(selectedIds);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelectedIds(next);
   };
 
-  // Placeholder insertion helper
   const insertPlaceholder = (tag) => {
     setMessage((prev) => `${prev} ${tag}`);
   };
 
-  // Get selected leads list
   const selectedLeadsList = currentLeadPool.filter((l) => selectedIds.has(l.id));
 
-  // Determine channels array
   const activeChannels =
     channelMode === 'both' ? ['email', 'whatsapp'] : [channelMode];
 
-  // Start sending
   const handleConfirmSend = async () => {
     setShowConfirmModal(false);
     if (selectedLeadsList.length === 0) {
-      alert('Pehle kam se kam ek lead select karein.');
+      toast.warning('Please select at least one recipient lead.');
       return;
     }
 
@@ -293,19 +294,19 @@ export default function BulkSend() {
           skipped: 0,
           results: []
         });
+        toast.info('Outreach campaign launched in background.');
       }
     } catch (err) {
-      alert(`Send start error: ${err.message}`);
+      toast.error(`Campaign initiation error: ${err.message}`);
     }
   };
 
-  // Attachment Handlers
   const handleAttachmentUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 15 * 1024 * 1024) {
-      alert('File size maximum 15MB ho sakti hai.');
+      toast.error('File size exceeds the 15 MB limit.');
       return;
     }
 
@@ -314,11 +315,12 @@ export default function BulkSend() {
       const formData = new FormData();
       formData.append('file', file);
       const res = await api.uploadAttachment(formData);
-      if (res.attachment) {
-        setAttachments((prev) => [...prev, res.attachment]);
+      if (res.attachment || res.file) {
+        setAttachments((prev) => [...prev, res.attachment || res.file]);
+        toast.success(`Attached "${file.name}".`);
       }
     } catch (err) {
-      alert(`Attachment upload fail ho gaya: ${err.message}`);
+      toast.error(`Attachment upload failed: ${err.message}`);
     } finally {
       setUploadingAtt(false);
       e.target.value = '';
@@ -329,18 +331,17 @@ export default function BulkSend() {
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Stop Job
   const handleStopJob = async () => {
     if (!currentJobId) return;
     try {
       await api.stopBulkJob(currentJobId);
       setPollingActive(false);
+      toast.warning('Campaign stop signal dispatched.');
     } catch (err) {
-      alert(`Stop error: ${err.message}`);
+      toast.error(`Stop error: ${err.message}`);
     }
   };
 
-  // Retry Failed Leads
   const handleRetryFailed = () => {
     if (!jobStatus || !jobStatus.results) return;
     const failedLeadKeys = new Set(
@@ -352,7 +353,7 @@ export default function BulkSend() {
     );
 
     if (retryLeads.length === 0) {
-      alert('Koi failed lead retry ke liye nahi mili.');
+      toast.info('No failed leads available to retry.');
       return;
     }
 
@@ -361,13 +362,12 @@ export default function BulkSend() {
     setSelectedIds(retryIds);
     setJobStatus(null);
     setCurrentJobId(null);
-    alert(`${retryLeads.length} failed leads retry ke liye select ho gayi hain. "Send" dabayein.`);
+    toast.success(`Selected ${retryLeads.length} failed leads. Click "Send" when ready.`);
   };
 
-  // Download Results CSV
   const handleDownloadCsv = () => {
     if (!jobStatus || !jobStatus.results || jobStatus.results.length === 0) {
-      alert('Download karne ke liye abhi koi result nahi hai.');
+      toast.warning('No campaign results available to download.');
       return;
     }
 
@@ -387,123 +387,95 @@ export default function BulkSend() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `bulk_send_results_${Date.now()}.csv`);
+    link.setAttribute('download', `bulk_outreach_results_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Preview lead
   const previewLead = selectedLeadsList[0] || {
-    name: 'Aarav Mehta',
-    company: 'Mehta Luxury Living',
+    name: 'Sarah Jenkins',
+    company: 'Jenkins Architecture Studio',
     city: 'Dubai',
     country: 'UAE'
   };
 
   const previewSubject = subject
     .replace(/{name}|\{\{name\}\}/gi, previewLead.name || 'Valued Partner')
-    .replace(/{company}|\{\{company\}\}/gi, previewLead.company || 'your company');
+    .replace(/{company}|\{\{company\}\}/gi, previewLead.company || 'your studio');
 
   const previewBody = message
     .replace(/{name}|\{\{name\}\}/gi, previewLead.name || 'Valued Partner')
-    .replace(/{company}|\{\{company\}\}/gi, previewLead.company || 'your company');
+    .replace(/{company}|\{\{company\}\}/gi, previewLead.company || 'your studio');
 
   return (
-    <div className="page-container" style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Top Banner & Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+    <div className="page-content">
+      {/* Top Banner & Quota */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: '700', color: 'var(--text-bright, #fff)', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-            <Send size={24} color="var(--gold-primary, #d97706)" />
-            Bulk Outreach Engine
-          </h1>
-          <p style={{ margin: '4px 0 0 0', color: 'var(--text-dim, #94a3b8)', fontSize: '14px' }}>
-            Email aur WhatsApp pe leads ko ek saath personal message bhejein (Anti-ban protection & Live tracking).
+          <h2 style={{ fontSize: 'var(--font-xl)', fontWeight: 700, color: 'var(--text-heading)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Send size={22} color="var(--gold-primary)" aria-hidden="true" />
+            Bulk Outreach & Campaign Engine
+          </h2>
+          <p className="page-subtitle">
+            Deliver personalized trade partnership inquiries across Email and WhatsApp with rate limiting and anti-spam defenses.
           </p>
         </div>
 
-        {/* Stats & Auth pill */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            background: 'var(--card-bg, #1e293b)',
-            padding: '8px 16px',
-            borderRadius: '8px',
-            border: '1px solid var(--border-color, #334155)',
-            fontSize: '13px',
-            color: 'var(--text-bright, #fff)'
-          }}>
-            <span style={{ color: 'var(--text-dim, #94a3b8)' }}>Aaj Bheje Gaye: </span>
-            <strong style={{ color: dailyStats.dailySent >= dailyStats.dailyLimit ? '#ef4444' : '#10b981' }}>
+          <div
+            style={{
+              background: 'var(--bg-surface)',
+              padding: '8px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-subtle)',
+              fontSize: 'var(--font-xs)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span style={{ color: 'var(--text-dim)' }}>Daily Sent:</span>
+            <strong className="tabular-nums" style={{ color: dailyStats.dailySent >= dailyStats.dailyLimit ? 'var(--danger-text)' : 'var(--success)' }}>
               {dailyStats.dailySent} / {dailyStats.dailyLimit}
             </strong>
           </div>
 
-          <button
+          <Button
+            variant={isAuthenticated ? 'secondary' : 'danger'}
+            size="sm"
+            icon={isAuthenticated ? ShieldCheck : Lock}
             onClick={() => setShowPasswordModal(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: '1px solid #334155',
-              background: isAuthenticated ? '#064e3b' : '#7f1d1d',
-              color: '#fff',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
           >
-            {isAuthenticated ? <ShieldCheck size={14} color="#34d399" /> : <Lock size={14} color="#f87171" />}
             {isAuthenticated ? 'Authenticated' : 'Unlock Auth'}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Main Grid: Left side Setup & Compose | Right side Live Progress & Results */}
-      <div style={{ display: 'grid', gridTemplateColumns: currentJobId ? '1fr 1fr' : '1.3fr 0.9fr', gap: '24px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: currentJobId ? '1fr 1fr' : 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px', alignItems: 'start' }}>
         
         {/* LEFT COLUMN: Lead Selection & Message Composer */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Card 1: Leads Source & Table */}
-          <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid var(--border-color, #334155)', borderRadius: '12px', padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          {/* Card 1: Leads Source & Selection */}
+          <Card title="Target Recipients Pool" icon={Database}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button
+                <Button
+                  variant={leadSource === 'db' ? 'primary' : 'secondary'}
+                  size="sm"
+                  icon={Database}
                   onClick={() => setLeadSource('db')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontWeight: '600',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    background: leadSource === 'db' ? 'var(--gold-primary, #d97706)' : '#334155',
-                    color: '#fff'
-                  }}
                 >
-                  <Database size={15} /> Scraper Leads (DB se)
-                </button>
+                  Database Leads ({dbLeads.length})
+                </Button>
 
-                <label
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '6px',
-                    fontWeight: '600',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    background: leadSource === 'upload' ? 'var(--gold-primary, #d97706)' : '#334155',
-                    color: '#fff'
-                  }}
-                >
-                  <UploadCloud size={15} /> {uploadFileName ? uploadFileName : 'Upload CSV / Excel'}
+                <label style={{ display: 'inline-flex', cursor: 'pointer' }}>
+                  <span className={`btn btn-sm ${leadSource === 'upload' ? 'btn-primary' : 'btn-secondary'}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <UploadCloud size={14} aria-hidden="true" />
+                    {uploadFileName || 'Upload CSV / Excel'}
+                  </span>
                   <input
                     type="file"
                     accept=".csv, .xlsx, .xls"
@@ -513,62 +485,73 @@ export default function BulkSend() {
                 </label>
               </div>
 
-              {/* Search filter */}
-              <div style={{ position: 'relative', width: '220px' }}>
-                <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+              {/* Search filter in pool */}
+              <div style={{ position: 'relative', width: '200px' }}>
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--text-dim)' }} aria-hidden="true" />
                 <input
-                  type="text"
-                  placeholder="Search name, phone, city..."
+                  type="search"
+                  placeholder="Filter pool..."
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px 7px 30px',
-                    borderRadius: '6px',
-                    border: '1px solid #475569',
-                    background: '#0f172a',
-                    color: '#fff',
-                    fontSize: '12px'
-                  }}
+                  className="input"
+                  style={{ paddingLeft: '30px', fontSize: 'var(--font-xs)', height: '34px' }}
+                  aria-label="Filter recipient pool"
                 />
               </div>
             </div>
 
-            {/* Selection info bar */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a', padding: '10px 14px', borderRadius: '6px', marginBottom: '12px', fontSize: '13px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={handleToggleSelectAll}>
+            {/* Select All Bar */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'var(--bg-app)',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '10px',
+                fontSize: 'var(--font-xs)'
+              }}
+            >
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}
+                onClick={handleToggleSelectAll}
+              >
                 {selectedIds.size > 0 && selectedIds.size === filteredLeads.length ? (
-                  <CheckSquare size={16} color="var(--gold-primary, #d97706)" />
+                  <CheckSquare size={16} color="var(--gold-primary)" aria-hidden="true" />
                 ) : (
-                  <Square size={16} color="#64748b" />
+                  <Square size={16} color="var(--text-dim)" aria-hidden="true" />
                 )}
-                <span style={{ fontWeight: '600', color: '#f8fafc' }}>
-                  Select All ({filteredLeads.length} me se {selectedIds.size} selected)
+                <span style={{ fontWeight: 600, color: 'var(--text-heading)' }}>
+                  Select All ({selectedIds.size} of {filteredLeads.length} selected)
                 </span>
               </div>
 
               {leadSource === 'upload' && (
                 <button
+                  type="button"
                   onClick={() => setLeadSource('db')}
-                  style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '12px', cursor: 'pointer' }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--info)', fontSize: 'var(--font-xs)', cursor: 'pointer' }}
                 >
-                  Wapas DB Leads Pe Jao
+                  Back to Database Leads
                 </button>
               )}
             </div>
 
             {/* Leads Table */}
-            <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid #334155', borderRadius: '6px' }}>
+            <div style={{ maxHeight: '260px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}>
               {loadingLeads ? (
-                <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>Leads load ho rahi hain...</div>
+                <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  Loading recipient pool...
+                </div>
               ) : filteredLeads.length === 0 ? (
-                <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
-                  Koi lead nahi mili. {leadSource === 'upload' ? 'CSV/XLSX file upload karein.' : 'Scraper chala kar leads laayein.'}
+                <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 'var(--font-xs)' }}>
+                  No recipients found. Please upload a CSV or extract leads with the scraper.
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', color: '#cbd5e1' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-xs)', color: 'var(--text-main)' }}>
                   <thead>
-                    <tr style={{ background: '#0f172a', borderBottom: '1px solid #334155', textAlign: 'left', color: '#94a3b8' }}>
+                    <tr style={{ background: 'var(--bg-surface-elevated)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left', color: 'var(--text-dim)' }}>
                       <th style={{ padding: '8px 12px', width: '36px' }}></th>
                       <th style={{ padding: '8px 12px' }}>Business / Lead Name</th>
                       <th style={{ padding: '8px 12px' }}>Email</th>
@@ -584,36 +567,40 @@ export default function BulkSend() {
                           key={lead.id}
                           onClick={() => handleToggleLead(lead.id)}
                           style={{
-                            borderBottom: '1px solid #1e293b',
-                            background: isSelected ? 'rgba(217, 119, 6, 0.1)' : 'transparent',
+                            borderBottom: '1px solid var(--border-subtle)',
+                            background: isSelected ? 'rgba(217, 119, 6, 0.08)' : 'transparent',
                             cursor: 'pointer'
                           }}
                         >
                           <td style={{ padding: '8px 12px' }}>
-                            {isSelected ? <CheckSquare size={15} color="var(--gold-primary, #d97706)" /> : <Square size={15} color="#64748b" />}
+                            {isSelected ? (
+                              <CheckSquare size={15} color="var(--gold-primary)" aria-hidden="true" />
+                            ) : (
+                              <Square size={15} color="var(--text-dim)" aria-hidden="true" />
+                            )}
                           </td>
-                          <td style={{ padding: '8px 12px', fontWeight: '600', color: '#f8fafc' }}>
+                          <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-heading)' }}>
                             {lead.name || lead.businessName}
                           </td>
                           <td style={{ padding: '8px 12px' }}>
                             {lead.email ? (
-                              <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Mail size={12} /> {lead.email}
+                              <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Mail size={12} aria-hidden="true" /> {lead.email}
                               </span>
                             ) : (
-                              <span style={{ color: '#64748b' }}>—</span>
+                              <span style={{ color: 'var(--text-dim)' }}>—</span>
                             )}
                           </td>
                           <td style={{ padding: '8px 12px' }}>
                             {lead.phone ? (
-                              <span style={{ color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <MessageSquare size={12} /> {lead.phone}
+                              <span style={{ color: 'var(--info)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <MessageSquare size={12} aria-hidden="true" /> {lead.phone}
                               </span>
                             ) : (
-                              <span style={{ color: '#64748b' }}>—</span>
+                              <span style={{ color: 'var(--text-dim)' }}>—</span>
                             )}
                           </td>
-                          <td style={{ padding: '8px 12px', color: '#94a3b8' }}>
+                          <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>
                             {lead.city || '—'}
                           </td>
                         </tr>
@@ -623,161 +610,100 @@ export default function BulkSend() {
                 </table>
               )}
             </div>
-          </div>
+          </Card>
 
           {/* Card 2: Message & Channel Composer */}
-          <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid var(--border-color, #334155)', borderRadius: '12px', padding: '20px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#f8fafc', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Channel & Message Format
-            </h3>
-
-            {/* Channel Toggle */}
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-              <button
+          <Card title="Channel & Message Formulation" icon={Mail}>
+            {/* Channel Selection */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+              <Button
+                variant={channelMode === 'email' ? 'primary' : 'secondary'}
+                size="sm"
+                icon={Mail}
                 onClick={() => setChannelMode('email')}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '8px',
-                  border: channelMode === 'email' ? '2px solid #10b981' : '1px solid #334155',
-                  background: channelMode === 'email' ? 'rgba(16, 185, 129, 0.15)' : '#0f172a',
-                  color: channelMode === 'email' ? '#10b981' : '#94a3b8',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
+                style={{ flex: 1 }}
               >
-                <Mail size={16} /> Sirf Email
-              </button>
-
-              <button
+                Email Only
+              </Button>
+              <Button
+                variant={channelMode === 'whatsapp' ? 'primary' : 'secondary'}
+                size="sm"
+                icon={MessageSquare}
                 onClick={() => setChannelMode('whatsapp')}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '8px',
-                  border: channelMode === 'whatsapp' ? '2px solid #38bdf8' : '1px solid #334155',
-                  background: channelMode === 'whatsapp' ? 'rgba(56, 189, 248, 0.15)' : '#0f172a',
-                  color: channelMode === 'whatsapp' ? '#38bdf8' : '#94a3b8',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
+                style={{ flex: 1 }}
               >
-                <MessageSquare size={16} /> Sirf WhatsApp
-              </button>
-
-              <button
+                WhatsApp Only
+              </Button>
+              <Button
+                variant={channelMode === 'both' ? 'primary' : 'secondary'}
+                size="sm"
                 onClick={() => setChannelMode('both')}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '8px',
-                  border: channelMode === 'both' ? '2px solid var(--gold-primary, #d97706)' : '1px solid #334155',
-                  background: channelMode === 'both' ? 'rgba(217, 119, 6, 0.15)' : '#0f172a',
-                  color: channelMode === 'both' ? 'var(--gold-primary, #d97706)' : '#94a3b8',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
+                style={{ flex: 1 }}
               >
-                <Send size={16} /> Dono (Email + WA)
-              </button>
+                Both Channels
+              </Button>
             </div>
 
-            {/* Email Subject Line (if email included) */}
+            {/* Email Subject */}
             {(channelMode === 'email' || channelMode === 'both') && (
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#94a3b8', marginBottom: '6px' }}>
-                  Email Subject
-                </label>
+              <Field label="Email Subject Line" id="bulk-subject">
                 <input
-                  type="text"
+                  id="bulk-subject"
+                  className="input"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #475569',
-                    background: '#0f172a',
-                    color: '#fff',
-                    fontSize: '13px'
-                  }}
+                  placeholder="e.g. Trade Partnership: Handmade Bespoke Rugs"
                 />
-              </div>
+              </Field>
             )}
 
-            {/* Message Body & Placeholders */}
-            <div style={{ marginBottom: '14px' }}>
+            {/* Message Body */}
+            <div style={{ marginTop: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8' }}>
-                  Message Content (Hinglish / English)
+                <label htmlFor="bulk-message" className="form-label" style={{ marginBottom: 0 }}>
+                  Message Content Template
                 </label>
-
-                {/* Clickable Placeholders */}
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button
                     type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
                     onClick={() => insertPlaceholder('{name}')}
-                    style={{ background: '#334155', border: 'none', color: '#38bdf8', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
                   >
                     + {'{name}'}
                   </button>
                   <button
                     type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '10px', padding: '2px 6px' }}
                     onClick={() => insertPlaceholder('{company}')}
-                    style={{ background: '#334155', border: 'none', color: '#38bdf8', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
                   >
                     + {'{company}'}
                   </button>
                 </div>
               </div>
-
-              <textarea
-                rows={7}
+              <Textarea
+                id="bulk-message"
+                rows={6}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #475569',
-                  background: '#0f172a',
-                  color: '#fff',
-                  fontSize: '13px',
-                  fontFamily: 'inherit',
-                  lineHeight: '1.5'
-                }}
               />
             </div>
 
-            {/* Attachments Section (PDF Catalogues & Product Images) */}
-            <div style={{ marginBottom: '16px', background: '#0f172a', padding: '12px 14px', borderRadius: '8px', border: '1px dashed #334155' }}>
+            {/* File Attachments */}
+            <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Paperclip size={14} color="#d97706" /> Attach Files (PDF Catalog, Rug Photos)
+                <span style={{ fontSize: 'var(--font-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>
+                  Catalog & Digital Attachments
                 </span>
-
-                <label style={{ cursor: 'pointer' }}>
-                  <span style={{ fontSize: '11px', background: '#334155', color: '#f8fafc', padding: '4px 10px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    + {uploadingAtt ? 'Uploading...' : 'Upload File'}
+                <label style={{ display: 'inline-flex', cursor: 'pointer' }}>
+                  <span className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Paperclip size={13} aria-hidden="true" />
+                    {uploadingAtt ? 'Uploading...' : 'Attach PDF / Image'}
                   </span>
                   <input
                     type="file"
-                    accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp"
                     style={{ display: 'none' }}
                     onChange={handleAttachmentUpload}
                     disabled={uploadingAtt}
@@ -785,12 +711,8 @@ export default function BulkSend() {
                 </label>
               </div>
 
-              {attachments.length === 0 ? (
-                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                  Koi file attach nahi hai. PDF catalogue ya image attach karke buyers ko send kar sakte hain (max 15MB).
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {attachments.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
                   {attachments.map((att, idx) => (
                     <div
                       key={idx}
@@ -798,22 +720,24 @@ export default function BulkSend() {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        background: '#1e293b',
+                        background: 'var(--bg-app)',
                         padding: '6px 10px',
-                        borderRadius: '6px',
-                        fontSize: '12px'
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: 'var(--font-xs)'
                       }}
                     >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#f8fafc' }}>
-                        <FileText size={13} color="#d97706" />
-                        {att.filename} ({Math.round((att.size || 0) / 1024)} KB)
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                        <FileText size={13} color="var(--gold-primary)" aria-hidden="true" />
+                        {att.filename}
                       </span>
                       <button
                         type="button"
+                        className="btn-icon btn-ghost btn-sm"
                         onClick={() => handleRemoveAttachment(idx)}
-                        style={{ background: 'none', border: 'none', color: '#f43f5e', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}
+                        style={{ color: 'var(--danger-text)' }}
+                        aria-label={`Remove attachment ${att.filename}`}
                       >
-                        ✕
+                        <XCircle size={13} />
                       </button>
                     </div>
                   ))}
@@ -821,508 +745,239 @@ export default function BulkSend() {
               )}
             </div>
 
-            {/* Guardrails & Safety Options */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#0f172a', padding: '12px', borderRadius: '8px', fontSize: '12px', marginBottom: '16px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#cbd5e1' }}>
+            {/* Campaign Options */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 'var(--font-xs)', color: 'var(--text-main)' }}>
                 <input
                   type="checkbox"
                   checked={skipAlreadySent}
                   onChange={(e) => setSkipAlreadySent(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--gold-primary)' }}
                 />
-                Pehle bhej chuke hain unhe skip karo
+                <span>Skip contacted leads</span>
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#cbd5e1' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 'var(--font-xs)', color: 'var(--text-main)' }}>
                 <input
                   type="checkbox"
                   checked={dryRun}
                   onChange={(e) => setDryRun(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--gold-primary)' }}
                 />
-                <span style={{ color: dryRun ? '#f59e0b' : '#cbd5e1', fontWeight: dryRun ? '600' : 'normal' }}>
-                  Dry Run Mode (Test bina message bheje)
-                </span>
-              </label>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-                <span>Delay:</span>
-                <input
-                  type="number"
-                  min="1000"
-                  step="500"
-                  value={delayMs}
-                  onChange={(e) => setDelayMs(e.target.value)}
-                  style={{ width: '80px', padding: '3px 6px', background: '#1e293b', border: '1px solid #475569', color: '#fff', borderRadius: '4px', fontSize: '11px' }}
-                />
-                <span>ms / msg</span>
-              </div>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#94a3b8' }}>
-                <input
-                  type="checkbox"
-                  checked={useTemplate}
-                  onChange={(e) => setUseTemplate(e.target.checked)}
-                />
-                Meta Approved WhatsApp Template use karo
+                <span>Dry Run (simulate only)</span>
               </label>
             </div>
 
-            {/* SEND BUTTON */}
-            <button
-              onClick={() => setShowConfirmModal(true)}
-              disabled={selectedLeadsList.length === 0 || pollingActive}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '8px',
-                border: 'none',
-                background: pollingActive ? '#475569' : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                color: '#fff',
-                fontSize: '15px',
-                fontWeight: '700',
-                cursor: pollingActive ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 14px rgba(217, 119, 6, 0.3)'
-              }}
-            >
-              <Send size={18} />
-              {pollingActive
-                ? 'Job chal rahi hai...'
-                : `${selectedLeadsList.length} Leads ko Send Karo (${channelMode.toUpperCase()})`}
-            </button>
-          </div>
+            {/* Launch Campaign Button */}
+            <div style={{ marginTop: '20px' }}>
+              <Button
+                variant="primary"
+                size="lg"
+                icon={Send}
+                onClick={() => setShowConfirmModal(true)}
+                disabled={selectedLeadsList.length === 0 || !isAuthenticated || pollingActive}
+                style={{ width: '100%' }}
+              >
+                Send to {selectedLeadsList.length} Selected Leads
+              </Button>
+            </div>
+          </Card>
         </div>
 
-        {/* RIGHT COLUMN: Live Preview & Progress/Results */}
+        {/* RIGHT COLUMN: Live Progress & Live Results */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Live Progress Card (Active or Finished Job) */}
+          {/* Card: Active Campaign Progress */}
           {jobStatus && (
-            <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid var(--border-color, #334155)', borderRadius: '12px', padding: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#f8fafc', margin: 0 }}>
-                    Live Sending Progress
-                  </h3>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Job ID: {jobStatus.jobId}</div>
-                </div>
+            <Card title="Campaign Execution Monitor" icon={Send}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <Badge variant={jobStatus.status === 'completed' ? 'success' : jobStatus.status === 'running' ? 'warning' : 'danger'}>
+                  Status: {jobStatus.status.toUpperCase()}
+                </Badge>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {pollingActive && (
-                    <button
-                      onClick={handleStopJob}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        background: '#dc2626',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <StopCircle size={14} /> Stop
-                    </button>
-                  )}
-
-                  {!pollingActive && jobStatus.failed > 0 && (
-                    <button
-                      onClick={handleRetryFailed}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        background: '#d97706',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <RotateCcw size={14} /> Retry Failed
-                    </button>
-                  )}
-
-                  {!pollingActive && (
-                    <button
-                      onClick={handleDownloadCsv}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        background: '#0284c7',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Download size={14} /> CSV
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              {(() => {
-                const total = jobStatus.total || 1;
-                const processed = jobStatus.processed || 0;
-                const pct = Math.min(100, Math.round((processed / total) * 100));
-                return (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#cbd5e1', marginBottom: '6px' }}>
-                      <span>Progress: {pct}%</span>
-                      <span>{processed} / {total} processed</span>
-                    </div>
-                    <div style={{ height: '8px', background: '#0f172a', borderRadius: '4px', overflow: 'hidden', marginBottom: '16px' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${pct}%`,
-                          background: jobStatus.status === 'completed' ? '#10b981' : 'linear-gradient(90deg, #d97706, #f59e0b)',
-                          transition: 'width 0.3s ease'
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Counter Metrics */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '16px' }}>
-                <div style={{ background: '#0f172a', padding: '10px 4px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Total</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#f8fafc' }}>{jobStatus.total}</div>
-                </div>
-                <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '10px 4px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                  <div style={{ fontSize: '11px', color: '#10b981' }}>Sent</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#10b981' }}>{jobStatus.sent}</div>
-                </div>
-                <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '10px 4px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                  <div style={{ fontSize: '11px', color: '#ef4444' }}>Failed</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#ef4444' }}>{jobStatus.failed}</div>
-                </div>
-                <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '10px 4px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                  <div style={{ fontSize: '11px', color: '#f59e0b' }}>Skipped</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#f59e0b' }}>{jobStatus.skipped}</div>
-                </div>
-              </div>
-
-              {/* Real-time Results Log List */}
-              <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid #334155', borderRadius: '6px' }}>
-                {(!jobStatus.results || jobStatus.results.length === 0) ? (
-                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: '#94a3b8' }}>
-                    Leads process hone ka intezar...
-                  </div>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                    <tbody>
-                      {jobStatus.results.map((r, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                          <td style={{ padding: '6px 8px', width: '20px' }}>
-                            {r.status === 'sent' && <CheckCircle2 size={13} color="#10b981" />}
-                            {r.status === 'failed' && <XCircle size={13} color="#ef4444" />}
-                            {r.status === 'skipped' && <AlertTriangle size={13} color="#f59e0b" />}
-                          </td>
-                          <td style={{ padding: '6px 8px', fontWeight: '600', color: '#f8fafc' }}>
-                            {r.name}
-                          </td>
-                          <td style={{ padding: '6px 8px', color: '#94a3b8' }}>
-                            {r.channel === 'email' ? <Mail size={11} style={{ display: 'inline', marginRight: '3px' }} /> : <MessageSquare size={11} style={{ display: 'inline', marginRight: '3px' }} />}
-                            {r.recipient}
-                          </td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                            {r.status === 'sent' && <span style={{ color: '#10b981', fontWeight: '600' }}>Sent</span>}
-                            {r.status === 'failed' && <span style={{ color: '#ef4444' }}>{r.error || 'Failed'}</span>}
-                            {r.status === 'skipped' && <span style={{ color: '#f59e0b' }}>{r.error || 'Skipped'}</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {jobStatus.status === 'running' && (
+                  <Button variant="danger" size="sm" icon={StopCircle} onClick={handleStopJob}>
+                    Stop Job
+                  </Button>
                 )}
               </div>
-            </div>
+
+              {/* Progress metrics */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', textAlign: 'center', marginBottom: '14px' }}>
+                <div style={{ background: 'var(--bg-app)', padding: '10px 6px', borderRadius: 'var(--radius-sm)' }}>
+                  <div className="tabular-nums" style={{ fontSize: 'var(--font-lg)', fontWeight: 700 }}>{jobStatus.total || 0}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Total</div>
+                </div>
+                <div style={{ background: 'var(--bg-app)', padding: '10px 6px', borderRadius: 'var(--radius-sm)' }}>
+                  <div className="tabular-nums" style={{ fontSize: 'var(--font-lg)', fontWeight: 700, color: 'var(--success)' }}>{jobStatus.sent || 0}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Delivered</div>
+                </div>
+                <div style={{ background: 'var(--bg-app)', padding: '10px 6px', borderRadius: 'var(--radius-sm)' }}>
+                  <div className="tabular-nums" style={{ fontSize: 'var(--font-lg)', fontWeight: 700, color: 'var(--danger-text)' }}>{jobStatus.failed || 0}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Failed</div>
+                </div>
+                <div style={{ background: 'var(--bg-app)', padding: '10px 6px', borderRadius: 'var(--radius-sm)' }}>
+                  <div className="tabular-nums" style={{ fontSize: 'var(--font-lg)', fontWeight: 700, color: 'var(--warning-text)' }}>{jobStatus.skipped || 0}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Skipped</div>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="progress-track" style={{ height: '8px', marginBottom: '16px' }}>
+                <div
+                  className="progress-bar"
+                  style={{
+                    width: `${Math.min(100, Math.round(((jobStatus.processed || 0) / (jobStatus.total || 1)) * 100))}%`
+                  }}
+                />
+              </div>
+
+              {/* Actions: Download CSV & Retry */}
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                {jobStatus.failed > 0 && (
+                  <Button variant="secondary" size="sm" icon={RotateCcw} onClick={handleRetryFailed}>
+                    Retry {jobStatus.failed} Failed
+                  </Button>
+                )}
+                <Button variant="secondary" size="sm" icon={Download} onClick={handleDownloadCsv}>
+                  Export Results CSV
+                </Button>
+              </div>
+
+              {/* Results Stream Table */}
+              <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', marginTop: '14px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-xs)', color: 'var(--text-main)' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-surface-elevated)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left', color: 'var(--text-dim)' }}>
+                      <th style={{ padding: '6px 10px' }}>Recipient</th>
+                      <th style={{ padding: '6px 10px' }}>Channel</th>
+                      <th style={{ padding: '6px 10px' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(jobStatus.results || []).slice(-25).reverse().map((res, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '6px 10px', fontWeight: 600 }}>{res.recipient || res.name}</td>
+                        <td style={{ padding: '6px 10px', textTransform: 'capitalize' }}>{res.channel}</td>
+                        <td style={{ padding: '6px 10px' }}>
+                          <span style={{ color: res.status === 'sent' ? 'var(--success)' : 'var(--danger-text)' }}>
+                            {res.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           )}
 
-          {/* Live Preview Card */}
-          <div style={{ background: 'var(--card-bg, #1e293b)', border: '1px solid var(--border-color, #334155)', borderRadius: '12px', padding: '20px' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#f8fafc', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Eye size={16} color="#38bdf8" /> Pehli Selected Lead Ka Message Preview
-            </h3>
+          {/* Card: Live Dynamic Preview */}
+          <Card title="Personalized Preview" icon={Eye}>
+            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              Previewing template variables mapped for sample lead: <strong>{previewLead.company || previewLead.name}</strong>
+            </div>
 
-            <div style={{ background: '#0f172a', padding: '14px', borderRadius: '8px', border: '1px solid #334155', fontSize: '13px' }}>
-              <div style={{ borderBottom: '1px solid #334155', paddingBottom: '8px', marginBottom: '10px' }}>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>TO:</div>
-                <div style={{ fontWeight: '600', color: '#f8fafc' }}>
-                  {previewLead.name} ({previewLead.company})
-                </div>
-                <div style={{ fontSize: '12px', color: '#38bdf8' }}>
-                  {previewLead.email || 'No email'} • {previewLead.phone || 'No phone'}
-                </div>
+            <div style={{ background: 'var(--bg-app)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '14px' }}>
+              <div style={{ fontWeight: 700, fontSize: 'var(--font-sm)', color: 'var(--gold-primary)', marginBottom: '8px' }}>
+                {previewSubject}
               </div>
-
-              {(channelMode === 'email' || channelMode === 'both') && (
-                <div style={{ marginBottom: '8px' }}>
-                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>SUBJECT: </span>
-                  <strong style={{ color: '#f8fafc' }}>{previewSubject}</strong>
-                </div>
-              )}
-
-              <div style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', lineHeight: '1.5', fontSize: '12px', background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
+              <div style={{ fontSize: 'var(--font-xs)', whiteSpace: 'pre-wrap', lineHeight: '1.5', color: 'var(--text-main)' }}>
                 {previewBody}
               </div>
-
-              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '8px' }}>
-                * Note: Email me automated unsubscribe footer ("Reply STOP to opt out") automatically judta hai.
-              </div>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 
       {/* Confirmation Modal */}
-      {showConfirmModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            background: '#1e293b',
-            border: '1px solid #475569',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '460px',
-            width: '90%',
-            color: '#fff',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
-          }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertTriangle color="#f59e0b" size={20} /> Bulk Send Confirm Karein
-            </h3>
+      <Modal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        title="Confirm Bulk Outreach Campaign"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleConfirmSend}>
+              Start Campaign Now
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <p style={{ fontSize: 'var(--font-sm)', color: 'var(--text-main)' }}>
+            You are about to launch an automated outreach campaign to <strong>{selectedLeadsList.length}</strong> selected leads via{' '}
+            <strong style={{ textTransform: 'uppercase' }}>{channelMode}</strong>.
+          </p>
 
-            <p style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.5', margin: '0 0 16px 0' }}>
-              Aap <strong style={{ color: '#f8fafc' }}>{selectedLeadsList.length} leads</strong> ko message bhejne wale hain:
-            </p>
-
-            <ul style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px 0', paddingLeft: '20px' }}>
-              <li><strong>Channel:</strong> {channelMode.toUpperCase()}</li>
-              <li><strong>Delay:</strong> {delayMs}ms (Anti-spam interval)</li>
-              <li><strong>Already Sent Check:</strong> {skipAlreadySent ? 'Enabled (Do-bara nahi jayega)' : 'Disabled'}</li>
-              <li><strong>Mode:</strong> {dryRun ? 'DRY RUN (Bina message bheje test)' : 'LIVE OUTREACH'}</li>
-            </ul>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                style={{
-                  background: '#334155',
-                  border: 'none',
-                  color: '#fff',
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleConfirmSend}
-                style={{
-                  background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                  border: 'none',
-                  color: '#fff',
-                  padding: '8px 18px',
-                  borderRadius: '6px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                Haan, Send Karo
-              </button>
-            </div>
+          <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: 'var(--radius-sm)', fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
+            <div>• Channels: {activeChannels.join(' & ')}</div>
+            <div>• Attachments: {attachments.length} files attached</div>
+            <div>• Safety delay: {delayMs} ms per message</div>
+            <div>• Mode: {dryRun ? 'Simulated (Dry Run)' : 'Live Delivery'}</div>
           </div>
         </div>
-      )}
+      </Modal>
 
-      {/* Password Auth Modal */}
-      {showPasswordModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000
-        }}>
-          <div style={{
-            background: '#1e293b',
-            border: '1px solid #475569',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '420px',
-            width: '90%',
-            color: '#fff'
-          }}>
-            <h3 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Lock color="#f59e0b" size={18} /> Bulk Send Security Access
-            </h3>
-            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px 0', lineHeight: '1.4' }}>
-              LocalTunnel public link aur API ko secure rakhne ke liye <code>BULK_PASSWORD</code> enter karein (jo <code>.env</code> file mein set hai):
-            </p>
+      {/* Password Modal */}
+      <Modal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        title="Outreach Security Authorization"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowPasswordModal(false)}>
+              Close
+            </Button>
+            <Button variant="primary" loading={authLoading} onClick={() => checkAuth()}>
+              Authorize Access
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <p style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
+            To safeguard outbound export messaging channels and ensure verified operation, please enter the authorized <code>BULK_PASSWORD</code>:
+          </p>
 
-            {authSuccess && (
-              <div style={{
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: '#10b981',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                marginBottom: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <CheckCircle2 size={16} />
-                <span>{authSuccess}</span>
-              </div>
-            )}
-
-            {authError && (
-              <div style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                color: '#ef4444',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                marginBottom: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <AlertTriangle size={16} />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            <div style={{ position: 'relative', marginBottom: '16px' }}>
+          <div style={{ position: 'relative' }}>
+            <Field label="Security Password" id="bulk-auth-input">
               <input
+                id="bulk-auth-input"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="BULK_PASSWORD daalein (.env)"
+                className="input"
+                placeholder="Enter password from .env"
                 value={authPassword}
                 onChange={(e) => setAuthPassword(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !authLoading) checkAuth(authPassword); }}
-                style={{
-                  width: '100%',
-                  padding: '10px 40px 10px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #475569',
-                  background: '#0f172a',
-                  color: '#fff',
-                  fontSize: '14px',
-                  boxSizing: 'border-box'
-                }}
+                onKeyDown={(e) => e.key === 'Enter' && checkAuth()}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                title={showPassword ? 'Hide password' : 'Show password'}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthPassword('');
-                  setAuthError('');
-                  localStorage.removeItem('bulk_auth_password');
-                }}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#94a3b8',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  textDecoration: 'underline'
-                }}
-              >
-                Clear input
-              </button>
-
-              <button
-                onClick={() => checkAuth(authPassword)}
-                disabled={authLoading}
-                style={{
-                  background: authLoading ? '#92400e' : 'var(--gold-primary, #d97706)',
-                  border: 'none',
-                  color: '#fff',
-                  padding: '9px 20px',
-                  borderRadius: '6px',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  cursor: authLoading ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  opacity: authLoading ? 0.7 : 1
-                }}
-              >
-                {authLoading ? (
-                  <>
-                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verifying...
-                  </>
-                ) : (
-                  'Authenticate'
-                )}
-              </button>
-            </div>
+            </Field>
+            <button
+              type="button"
+              className="btn-icon btn-ghost btn-sm"
+              style={{ position: 'absolute', right: '8px', top: '28px', color: 'var(--text-dim)' }}
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
           </div>
+
+          {authError && (
+            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--danger-text)' }}>
+              {authError}
+            </div>
+          )}
+
+          {authSuccess && (
+            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--success)' }}>
+              {authSuccess}
+            </div>
+          )}
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

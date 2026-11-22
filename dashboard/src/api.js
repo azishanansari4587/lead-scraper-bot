@@ -141,5 +141,47 @@ export const api = {
   verifyBulkAuth: (key) =>
     fetchJson('/bulk/verify-auth', {
       headers: key ? { 'x-bulk-auth': key } : {}
-    })
+    }),
+
+  // Phase A: Today Command Center & User Settings
+  getTodaySummary: () => fetchJson('/today/summary'),
+  getUserSettings: () => fetchJson('/settings/user'),
+  updateUserSettings: (updates) => fetchJson('/settings/user', { method: 'PATCH', body: JSON.stringify(updates) }),
+
+  // Phase A: Calls & Scripts
+  getCalls: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    return fetchJson(`/calls?${qs.toString()}`);
+  },
+  getCallsToday: () => fetchJson('/calls/today'),
+  getCallStats: () => fetchJson('/calls/stats'),
+  getCallScripts: () => fetchJson('/calls/scripts'),
+  logCall: (payload) => fetchJson('/calls', { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Phase A: Notes (Polymorphic Notebook)
+  getNotes: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    return fetchJson(`/notes?${qs.toString()}`);
+  },
+  getNoteTags: () => fetchJson('/notes/tags'),
+  createNote: (payload) => fetchJson('/notes', { method: 'POST', body: JSON.stringify(payload) }),
+  updateNote: (id, updates) => fetchJson(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  deleteNote: (id) => fetchJson(`/notes/${id}`, { method: 'DELETE' }),
+
+  // Phase A: Follow-ups Engine
+  getFollowUpsToday: () => fetchJson('/follow-ups/today'),
+  updateFollowUpStatus: (id, status, notes) => fetchJson(`/follow-ups/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, notes }) }),
+  createFollowUp: (payload) => fetchJson('/follow-ups', { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Phase A: Leads Extensions (Timeline, Mark-Replied, BuyerType)
+  getLeadTimeline: (id) => fetchJson(`/leads/${id}/timeline`),
+  markLeadReplied: (id, replyNote) => fetchJson(`/leads/${id}/mark-replied`, { method: 'POST', body: JSON.stringify({ replyNote }) }),
+  updateLeadBuyerType: (id, buyerType) => fetchJson(`/leads/${id}/buyer-type`, { method: 'PATCH', body: JSON.stringify({ buyerType }) }),
+  classifyLead: (id) => fetchJson(`/leads/${id}/classify`, { method: 'POST' })
 };

@@ -52,8 +52,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional().default(''),
   SMTP_PASS: z.string().optional().default(''),
   SMTP_FROM: z.string().default('"Knotiq Rugs" <info@knotiqrugs.com>'),
-  SENDER_PHONE: z.string().default('+971 582549695'),
-  SENDER_WHATSAPP: z.string().default('+971582549695'),
+  SENDER_PHONE: z.string().default('+971 54 482 9117'),
+  SENDER_WHATSAPP: z.string().default('+971544829117'),
 
   // WhatsApp Cloud API
   WHATSAPP_TOKEN: z.string().optional().default(''),
