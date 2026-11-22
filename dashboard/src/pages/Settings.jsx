@@ -43,12 +43,16 @@ export default function Settings() {
   // Delete suppression confirm
   const [deletingOptId, setDeletingOptId] = useState(null);
 
-  // User Settings & Daily Targets
+  // User Settings & Daily Targets & Reminders
   const [userSettings, setUserSettings] = useState({
     timezone: 'Asia/Dubai',
     dailyTargetCalls: 15,
     dailyTargetEmails: 20,
-    dailyTargetWhatsapps: 25
+    dailyTargetWhatsapps: 25,
+    morningBriefTime: '08:30',
+    eveningNudgeTime: '18:30',
+    eventReminderMinutes: 15,
+    remindersEnabled: true
   });
   const [savingUserSettings, setSavingUserSettings] = useState(false);
 
@@ -69,9 +73,13 @@ export default function Settings() {
       if (userSettingsRes.settings) {
         setUserSettings({
           timezone: userSettingsRes.settings.timezone || 'Asia/Dubai',
-          dailyTargetCalls: userSettingsRes.settings.dailyTargetCalls ?? 15,
-          dailyTargetEmails: userSettingsRes.settings.dailyTargetEmails ?? 20,
-          dailyTargetWhatsapps: userSettingsRes.settings.dailyTargetWhatsapps ?? 25
+          dailyTargetCalls: userSettingsRes.settings.dailyCallTarget ?? userSettingsRes.settings.dailyTargetCalls ?? 15,
+          dailyTargetEmails: userSettingsRes.settings.dailyEmailTarget ?? userSettingsRes.settings.dailyTargetEmails ?? 20,
+          dailyTargetWhatsapps: userSettingsRes.settings.dailyWhatsappTarget ?? userSettingsRes.settings.dailyTargetWhatsapps ?? 25,
+          morningBriefTime: userSettingsRes.settings.morningBriefTime || '08:30',
+          eveningNudgeTime: userSettingsRes.settings.eveningNudgeTime || '18:30',
+          eventReminderMinutes: userSettingsRes.settings.eventReminderMinutes ?? 15,
+          remindersEnabled: userSettingsRes.settings.remindersEnabled ?? true
         });
       }
     } catch (err) {
@@ -85,8 +93,20 @@ export default function Settings() {
     e.preventDefault();
     setSavingUserSettings(true);
     try {
-      await api.updateUserSettings(userSettings);
-      toast.success('Founder daily targets and timezone updated!');
+      await api.updateUserSettings({
+        timezone: userSettings.timezone,
+        dailyCallTarget: userSettings.dailyTargetCalls,
+        dailyEmailTarget: userSettings.dailyTargetEmails,
+        dailyWhatsappTarget: userSettings.dailyTargetWhatsapps,
+        dailyTargetCalls: userSettings.dailyTargetCalls,
+        dailyTargetEmails: userSettings.dailyTargetEmails,
+        dailyTargetWhatsapps: userSettings.dailyTargetWhatsapps,
+        morningBriefTime: userSettings.morningBriefTime,
+        eveningNudgeTime: userSettings.eveningNudgeTime,
+        eventReminderMinutes: userSettings.eventReminderMinutes,
+        remindersEnabled: userSettings.remindersEnabled
+      });
+      toast.success('Founder targets and automated reminder preferences updated!');
     } catch (err) {
       toast.error(`Failed to update settings: ${err.message}`);
     } finally {
@@ -293,9 +313,61 @@ export default function Settings() {
               </Field>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', marginTop: '6px' }}>
+              <div style={{ fontSize: 'var(--font-xs)', fontWeight: 600, color: 'var(--gold-primary)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Automated Founder Reminders (Telegram & Email)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <Field label="Morning Brief" id="morning-brief-time">
+                  <input
+                    id="morning-brief-time"
+                    type="time"
+                    className="input"
+                    value={userSettings.morningBriefTime}
+                    onChange={(e) => setUserSettings({ ...userSettings, morningBriefTime: e.target.value })}
+                  />
+                </Field>
+
+                <Field label="Evening Nudge" id="evening-nudge-time">
+                  <input
+                    id="evening-nudge-time"
+                    type="time"
+                    className="input"
+                    value={userSettings.eveningNudgeTime}
+                    onChange={(e) => setUserSettings({ ...userSettings, eveningNudgeTime: e.target.value })}
+                  />
+                </Field>
+
+                <Field label="Event Alert (min)" id="event-lead-mins">
+                  <input
+                    id="event-lead-mins"
+                    type="number"
+                    min="1"
+                    max="120"
+                    className="input"
+                    value={userSettings.eventReminderMinutes}
+                    onChange={(e) => setUserSettings({ ...userSettings, eventReminderMinutes: parseInt(e.target.value, 10) || 15 })}
+                  />
+                </Field>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                <input
+                  type="checkbox"
+                  id="reminders-enabled"
+                  checked={userSettings.remindersEnabled}
+                  onChange={(e) => setUserSettings({ ...userSettings, remindersEnabled: e.target.checked })}
+                  style={{ accentColor: 'var(--gold-primary)', cursor: 'pointer' }}
+                />
+                <label htmlFor="reminders-enabled" style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  Enable automated founder reminder dispatches
+                </label>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
               <Button type="submit" variant="primary" size="sm" loading={savingUserSettings}>
-                Save Targets
+                Save Settings & Reminders
               </Button>
             </div>
           </form>

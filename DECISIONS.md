@@ -138,3 +138,21 @@ This document records all significant technical and design choices made during t
   - `README.md`: Executive-level system documentation detailing Knotiq Rugs business context, multi-engine scraping, 0-100 scoring, luxury dashboard UI, REST API schema, and CLI tools.
 
 
+
+
+## 16. Business Management System Upgrade (Phase A)
+- **CRM Upgrade & 8 Buyer Types:** Extended Lead pipeline to 9 statuses (`new`, `contacted`, `replied`, `sample_sent`, `quotation`, `negotiation`, `won`, `lost`, `repeat_client`) with backward-compatible migrations. Integrated rule-based 8-buyer-type classifier with Gemini fallback under daily quota limit.
+- **Outreach & Follow-Up Engine:** Auto-creates Day 4 (+3 days) and Day 7 (+6 days) follow-up tasks upon first recorded outreach. Provides 1-click "Mark Replied" that immediately cancels pending follow-ups and promotes lead status.
+- **Founder Call System & Buyer-Specific Scripts:** Complete call logger enforcing OptOut suppression, tracking duration and outcomes, updating lead status, and serving tailored scripts per buyer type.
+- **Polymorphic Notebook:** Polymorphic notes engine supporting markdown, tags, pinning, and links across leads, calls, tasks, campaigns, and events.
+- **Fast Today Command Center:** Sub-2-second aggregation of dual timezones (GST & IST), daily metrics vs targets, overdue items, scheduled calls, and top priorities.
+
+## 17. Tasks, Internal Calendar & Daily Planner Rituals (Phase B)
+- **Task Management Engine (`Task.js`):** Supports Kanban boards, list view, priorities, categories, MIT flags, lead linkage (rendering in lead activity timeline), and recurring task generation (daily, weekdays, weekly, monthly) with duplicate-prevention idempotency.
+- **Internal Unified Calendar (`CalendarEvent.js`, `calendarService.js`):** Unified feed merging events, tasks by due date, pending follow-ups, and scheduled "calls to make" (`itemType: 'call'`). Real-time time overlap conflict detection flagging concurrent bookings with dual UAE (GST) and India (IST) display.
+- **Polymorphic Notes Integration (`Note.js`):** Extended `ownerType` to include `'event'`, allowing direct note attachment to both tasks and calendar events, viewable and editable within task and event detail drawers.
+- **Daily Planner Rituals (`DailyPlan.js`, `DailyReview.js`, `plannerService.js`):**
+  - **Morning Plan:** Select up to 3 MITs (from open tasks or free text), confirm daily targets, and set a daily focus intention.
+  - **Evening Review:** Auto-summarizes day's results (calls, emails, WhatsApps, tasks done), records win and lesson of the day, previews tomorrow's auto-generated pipeline draft, and tracks consecutive consistency streaks.
+  - **Two Timezone-Aware Streaks:** Computes both **Evening Review streak** and **Daily Targets hit streak** in the user's configured timezone (default `Asia/Dubai`, UTC+4), with day-boundary precision (e.g., distinguishing 11:50 PM Dubai from 12:10 AM next-day Dubai).
+- **Founder Reminder Service (`founderReminderService.js`, `ReminderLog.js`):** Automated background reminder ticker that alerts the founder for morning plan briefs, evening review nudges, and upcoming event warnings via Telegram/Email. Timing is configurable per user (`morningBriefTime`, `eveningNudgeTime`, `eventReminderMinutes`, `remindersEnabled`), respects `DRY_RUN` simulation mode, and enforces zero duplicate dispatches across server restarts via unique `ReminderLog` keys.

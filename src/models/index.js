@@ -16,6 +16,11 @@ const Note = require('./Note');
 const FollowUp = require('./FollowUp');
 const OutreachLog = require('./OutreachLog');
 const UserSettings = require('./UserSettings');
+const Task = require('./Task');
+const CalendarEvent = require('./CalendarEvent');
+const DailyPlan = require('./DailyPlan');
+const DailyReview = require('./DailyReview');
+const ReminderLog = require('./ReminderLog');
 
 // Associations (idempotent guard for multi-import/test environments)
 if (!Lead.associations?.calls) {
@@ -39,6 +44,20 @@ if (!OutreachLog.associations?.lead) {
   OutreachLog.belongsTo(Lead, { foreignKey: 'leadId', as: 'lead' });
 }
 
+if (!Lead.associations?.tasks) {
+  Lead.hasMany(Task, { foreignKey: 'relatedLeadId', as: 'tasks' });
+}
+if (!Task.associations?.lead) {
+  Task.belongsTo(Lead, { foreignKey: 'relatedLeadId', as: 'lead' });
+}
+
+if (!Lead.associations?.calendarEvents) {
+  Lead.hasMany(CalendarEvent, { foreignKey: 'relatedLeadId', as: 'calendarEvents' });
+}
+if (!CalendarEvent.associations?.lead) {
+  CalendarEvent.belongsTo(Lead, { foreignKey: 'relatedLeadId', as: 'lead' });
+}
+
 const models = {
   sequelize,
   Lead,
@@ -57,7 +76,12 @@ const models = {
   Note,
   FollowUp,
   OutreachLog,
-  UserSettings
+  UserSettings,
+  Task,
+  CalendarEvent,
+  DailyPlan,
+  DailyReview,
+  ReminderLog
 };
 
 module.exports = models;

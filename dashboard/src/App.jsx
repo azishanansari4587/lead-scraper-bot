@@ -5,6 +5,7 @@ import Topbar from './components/Topbar';
 import { ToastProvider } from './components/ui/Toast';
 
 import Today from './pages/Today';
+import Tasks from './pages/Tasks';
 import Leads from './pages/Leads';
 import Calls from './pages/Calls';
 import Notes from './pages/Notes';
@@ -23,6 +24,7 @@ import { api } from './api';
 
 const ROUTE_TITLES = {
   '/today': 'Today Command Center',
+  '/tasks': 'Tasks & Priority MITs',
   '/leads': 'Leads Pipeline & Outreach',
   '/calls': 'Call System & Buyer Scripts',
   '/notes': 'Founder Notebook',
@@ -73,6 +75,7 @@ function DashboardLayout() {
           <Routes>
             <Route path="/" element={<Navigate to="/today" replace />} />
             <Route path="/today" element={<Today />} />
+            <Route path="/tasks" element={<Tasks />} />
             <Route path="/leads" element={<Leads onExportRequested={() => navigate('/exports')} />} />
             <Route path="/calls" element={<Calls />} />
             <Route path="/notes" element={<Notes />} />

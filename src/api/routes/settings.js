@@ -52,7 +52,11 @@ router.patch('/user', async (req, res, next) => {
         'dailyWhatsappTarget',
         'dailyCallTarget',
         'notifyTelegram',
-        'notifyEmail'
+        'notifyEmail',
+        'morningBriefTime',
+        'eveningNudgeTime',
+        'eventReminderMinutes',
+        'remindersEnabled'
       ];
       const updates = {};
       allowed.forEach((k) => {

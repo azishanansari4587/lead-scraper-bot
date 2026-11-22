@@ -35,6 +35,22 @@ const UserSettings = sequelize.define('UserSettings', {
   notifyEmail: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  morningBriefTime: {
+    type: DataTypes.STRING(10), // HH:mm
+    defaultValue: '08:30'
+  },
+  eveningNudgeTime: {
+    type: DataTypes.STRING(10), // HH:mm
+    defaultValue: '18:30'
+  },
+  eventReminderMinutes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 15
+  },
+  remindersEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   }
 }, {
   tableName: 'UserSettings',

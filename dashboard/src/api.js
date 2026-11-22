@@ -183,5 +183,37 @@ export const api = {
   getLeadTimeline: (id) => fetchJson(`/leads/${id}/timeline`),
   markLeadReplied: (id, replyNote) => fetchJson(`/leads/${id}/mark-replied`, { method: 'POST', body: JSON.stringify({ replyNote }) }),
   updateLeadBuyerType: (id, buyerType) => fetchJson(`/leads/${id}/buyer-type`, { method: 'PATCH', body: JSON.stringify({ buyerType }) }),
-  classifyLead: (id) => fetchJson(`/leads/${id}/classify`, { method: 'POST' })
+  classifyLead: (id) => fetchJson(`/leads/${id}/classify`, { method: 'POST' }),
+
+  // Phase B: Tasks
+  getTasks: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    return fetchJson(`/tasks?${qs.toString()}`);
+  },
+  createTask: (payload) => fetchJson('/tasks', { method: 'POST', body: JSON.stringify(payload) }),
+  updateTask: (id, updates) => fetchJson(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  deleteTask: (id) => fetchJson(`/tasks/${id}`, { method: 'DELETE' }),
+
+  // Phase B: Calendar
+  getCalendar: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    return fetchJson(`/calendar?${qs.toString()}`);
+  },
+  createCalendarEvent: (payload) => fetchJson('/calendar/events', { method: 'POST', body: JSON.stringify(payload) }),
+  updateCalendarEvent: (id, updates) => fetchJson(`/calendar/events/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  deleteCalendarEvent: (id) => fetchJson(`/calendar/events/${id}`, { method: 'DELETE' }),
+
+  // Phase B: Planner Rituals & Streaks
+  getDailyPlan: (date) => fetchJson(`/planner/daily-plan${date ? `?date=${date}` : ''}`),
+  saveDailyPlan: (payload) => fetchJson('/planner/daily-plan', { method: 'POST', body: JSON.stringify(payload) }),
+  getDailyReviewSummary: (date) => fetchJson(`/planner/daily-review/summary${date ? `?date=${date}` : ''}`),
+  saveDailyReview: (payload) => fetchJson('/planner/daily-review', { method: 'POST', body: JSON.stringify(payload) }),
+  getTomorrowDraft: (date) => fetchJson(`/planner/tomorrow-draft${date ? `?date=${date}` : ''}`),
+  getStreaks: () => fetchJson('/planner/streaks')
 };

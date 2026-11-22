@@ -91,6 +91,34 @@ class NotifierService {
   }
 
   /**
+   * Sends an alert email via SMTP
+   * @param {object} options { to, subject, text, html }
+   * @returns {Promise<{ sent: boolean, reason?: string }>}
+   */
+  async sendEmailAlert({ to, subject, text, html }) {
+    if (!this.mailTransporter) {
+      logger.debug('SMTP transporter unconfigured. Skipping email alert dispatch.');
+      return { sent: false, reason: 'unconfigured' };
+    }
+
+    try {
+      const recipient = to || env.SMTP_USER;
+      const info = await this.mailTransporter.sendMail({
+        from: env.SMTP_FROM,
+        to: recipient,
+        subject: subject || 'Knotiq Rugs Alert',
+        text: text || '',
+        html: html || `<p>${text || ''}</p>`
+      });
+
+      return { sent: true, messageId: info.messageId };
+    } catch (err) {
+      logger.warn({ err: err.message }, 'Failed to dispatch email alert');
+      return { sent: false, reason: err.message };
+    }
+  }
+
+  /**
    * Dispatches summary notifications after a scraper run completes
    * @param {object} run ScraperRun details
    * @param {object} [options]

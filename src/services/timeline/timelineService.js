@@ -9,6 +9,8 @@ const Note = require('../../models/Note');
 const FollowUp = require('../../models/FollowUp');
 const OutreachLog = require('../../models/OutreachLog');
 const BulkSendLog = require('../../models/BulkSendLog');
+const Task = require('../../models/Task');
+const CalendarEvent = require('../../models/CalendarEvent');
 const AuditLog = require('../../models/AuditLog');
 
 class TimelineService {
@@ -19,7 +21,7 @@ class TimelineService {
    * @returns {Promise<Array>}
    */
   async getLeadTimeline(userId, leadId) {
-    const [calls, notes, followUps, outreachLogs, bulkLogs] = await Promise.all([
+    const [calls, notes, followUps, outreachLogs, bulkLogs, tasks, events] = await Promise.all([
       Call.findAll({
         where: { userId, leadId },
         order: [['calledAt', 'DESC']],
@@ -43,6 +45,16 @@ class TimelineService {
       BulkSendLog.findAll({
         where: { leadId },
         order: [['sentAt', 'DESC']],
+        raw: true
+      }),
+      Task.findAll({
+        where: { userId, relatedLeadId: leadId },
+        order: [['createdAt', 'DESC']],
+        raw: true
+      }),
+      CalendarEvent.findAll({
+        where: { userId, relatedLeadId: leadId },
+        order: [['startAt', 'DESC']],
         raw: true
       })
     ]);
@@ -115,7 +127,39 @@ class TimelineService {
       });
     });
 
-    // 5. Bulk Send Logs (if not already recorded in OutreachLog)
+    // 5. Tasks linked to lead
+    tasks.forEach((t) => {
+      timeline.push({
+        id: `task_${t.id}`,
+        type: 'task',
+        title: `Task: ${t.title} (${t.status})`,
+        summary: t.description || `Priority: ${t.priority}, Category: ${t.category}`,
+        timestamp: t.completedAt || t.dueAt || t.createdAt,
+        metadata: {
+          status: t.status,
+          priority: t.priority,
+          isMIT: t.isMIT
+        }
+      });
+    });
+
+    // 6. Events linked to lead
+    events.forEach((e) => {
+      timeline.push({
+        id: `event_${e.id}`,
+        type: 'event',
+        title: `Event: ${e.title} (${e.type})`,
+        summary: e.notes || e.location || 'Calendar event',
+        timestamp: e.startAt,
+        metadata: {
+          type: e.type,
+          location: e.location,
+          allDay: e.allDay
+        }
+      });
+    });
+
+    // 7. Bulk Send Logs (if not already recorded in OutreachLog)
     bulkLogs.forEach((b) => {
       timeline.push({
         id: `bulk_${b.id}`,

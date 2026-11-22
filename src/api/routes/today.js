@@ -7,6 +7,11 @@
  * - Today's calls to make
  * - Today's follow-ups
  * - Top 3 strategic priorities
+ * - Today's Daily Plan (3 MITs with status, morning note)
+ * - Today's Scheduled Calendar Events
+ * - Tasks due today
+ * - Ritual prompt states (Morning Plan / Evening Review)
+ * - Consistency streaks
  */
 
 const express = require('express');
@@ -16,6 +21,11 @@ const Call = require('../../models/Call');
 const FollowUp = require('../../models/FollowUp');
 const OutreachLog = require('../../models/OutreachLog');
 const UserSettings = require('../../models/UserSettings');
+const Task = require('../../models/Task');
+const CalendarEvent = require('../../models/CalendarEvent');
+const DailyPlan = require('../../models/DailyPlan');
+const DailyReview = require('../../models/DailyReview');
+const { calculateStreaks } = require('../../services/planner/plannerService');
 
 const router = express.Router();
 
@@ -28,6 +38,8 @@ router.get('/summary', async (req, res, next) => {
     const userId = req.userId;
 
     const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
 
@@ -42,14 +54,23 @@ router.get('/summary', async (req, res, next) => {
       callsLoggedToday,
       emailsSentToday,
       whatsappsSentToday,
-      hotPriorityLeads
+      hotPriorityLeads,
+      todayPlan,
+      todayReview,
+      tasksDueToday,
+      calendarEventsToday,
+      streaks
     ] = await Promise.all([
       // 1. User settings
       UserSettings.findOne({ where: { userId } }).then((s) => s || {
         timezone: 'Asia/Dubai',
         dailyEmailTarget: 30,
         dailyWhatsappTarget: 30,
-        dailyCallTarget: 20
+        dailyCallTarget: 20,
+        morningBriefTime: '08:30',
+        eveningNudgeTime: '18:30',
+        eventReminderMinutes: 15,
+        remindersEnabled: true
       }),
 
       // 2. Overdue follow-ups
@@ -128,8 +149,72 @@ router.get('/summary', async (req, res, next) => {
         },
         limit: 5,
         order: [['score', 'DESC']]
-      })
+      }),
+
+      // 8. Today's daily plan
+      DailyPlan.findOne({
+        where: { userId, date: todayStr }
+      }),
+
+      // 9. Today's daily review
+      DailyReview.findOne({
+        where: { userId, date: todayStr }
+      }),
+
+      // 10. Tasks due today or overdue
+      Task.findAll({
+        where: {
+          userId,
+          status: { [Op.in]: ['todo', 'doing'] },
+          dueAt: { [Op.lte]: endOfDay }
+        },
+        limit: 15,
+        order: [
+          ['isMIT', 'DESC'],
+          ['dueAt', 'ASC'],
+          ['priority', 'DESC']
+        ],
+        include: [{
+          model: Lead,
+          as: 'lead',
+          attributes: ['id', 'businessName']
+        }]
+      }),
+
+      // 11. Today's calendar events
+      CalendarEvent.findAll({
+        where: {
+          userId,
+          startAt: { [Op.lte]: endOfDay },
+          endAt: { [Op.gte]: startOfDay }
+        },
+        order: [['startAt', 'ASC']],
+        include: [{
+          model: Lead,
+          as: 'lead',
+          attributes: ['id', 'businessName']
+        }]
+      }),
+
+      // 12. Streaks
+      calculateStreaks(userId).catch(() => ({ reviewStreak: 0, targetStreak: 0 }))
     ]);
+
+    // Enrich todayPlan with task completion states
+    let enrichedPlan = null;
+    if (todayPlan) {
+      enrichedPlan = todayPlan.toJSON();
+      const taskIds = [todayPlan.mit1TaskId, todayPlan.mit2TaskId, todayPlan.mit3TaskId].filter(Boolean);
+      if (taskIds.length > 0) {
+        const linkedTasks = await Task.findAll({
+          where: { id: { [Op.in]: taskIds }, userId }
+        });
+        const taskMap = new Map(linkedTasks.map((t) => [t.id, t]));
+        enrichedPlan.mit1Status = todayPlan.mit1TaskId && taskMap.get(todayPlan.mit1TaskId)?.status === 'done';
+        enrichedPlan.mit2Status = todayPlan.mit2TaskId && taskMap.get(todayPlan.mit2TaskId)?.status === 'done';
+        enrichedPlan.mit3Status = todayPlan.mit3TaskId && taskMap.get(todayPlan.mit3TaskId)?.status === 'done';
+      }
+    }
 
     // Top 3 Priorities compilation
     const priorities = [];
@@ -183,6 +268,11 @@ router.get('/summary', async (req, res, next) => {
       });
     }
 
+    // Ritual prompt status checks (based on Asia/Dubai time UTC+4)
+    const dubaiHour = (now.getUTCHours() + 4) % 24;
+    const needsMorningPlan = !todayPlan;
+    const needsEveningReview = !todayReview && (dubaiHour >= 17);
+
     const durationMs = Date.now() - startTime;
 
     res.json({
@@ -198,6 +288,16 @@ router.get('/summary', async (req, res, next) => {
         whatsapps: { logged: whatsappsSentToday, target: settings.dailyWhatsappTarget || 30 },
         calls: { logged: callsLoggedToday, target: settings.dailyCallTarget || 20 }
       },
+      streaks: streaks || { reviewStreak: 0, targetStreak: 0 },
+      rituals: {
+        needsMorningPlan,
+        needsEveningReview,
+        hasMorningPlan: Boolean(todayPlan),
+        hasEveningReview: Boolean(todayReview)
+      },
+      dailyPlan: enrichedPlan,
+      calendarEventsToday,
+      tasksDueToday,
       overdueFollowUps,
       todayFollowUps,
       priorities: priorities.slice(0, 3)

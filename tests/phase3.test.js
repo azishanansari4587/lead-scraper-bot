@@ -52,9 +52,12 @@ describe('Phase 3 - Directory Scrapers & Website Enrichment', () => {
     });
 
     it('allows safe public websites', async () => {
+      const dns = require('dns').promises;
+      const lookupSpy = vi.spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
       const res = await validateUrlForSsrf('https://example.com');
       expect(res.isSafe).toBe(true);
       expect(res.resolvedIps.length).toBeGreaterThan(0);
+      lookupSpy.mockRestore();
     });
   });
 

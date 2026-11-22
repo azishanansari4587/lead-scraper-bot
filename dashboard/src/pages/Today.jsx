@@ -3,7 +3,7 @@ import {
   Phone,
   Mail,
   Send,
-  Calendar,
+  Calendar as CalendarIcon,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -15,7 +15,15 @@ import {
   PhoneCall,
   Check,
   X,
-  RefreshCw
+  RefreshCw,
+  Flame,
+  Target,
+  Sun,
+  Moon,
+  Star,
+  CheckSquare,
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 import { api } from '../api';
 import { Button, Card, Modal, Field, Select, Textarea, Badge, useToast } from '../components/ui';
@@ -29,6 +37,8 @@ export default function Today({ onNavigate }) {
   // Modals state
   const [callModalOpen, setCallModalOpen] = useState(false);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [morningModalOpen, setMorningModalOpen] = useState(false);
+  const [eveningModalOpen, setEveningModalOpen] = useState(false);
   const [selectedLeadForCall, setSelectedLeadForCall] = useState(null);
 
   // Call form state
@@ -45,13 +55,34 @@ export default function Today({ onNavigate }) {
   const [noteTags, setNoteTags] = useState('General');
   const [savingNote, setSavingNote] = useState(false);
 
+  // Morning Plan form state
+  const [mit1, setMit1] = useState('');
+  const [mit2, setMit2] = useState('');
+  const [mit3, setMit3] = useState('');
+  const [mit1TaskId, setMit1TaskId] = useState('');
+  const [mit2TaskId, setMit2TaskId] = useState('');
+  const [mit3TaskId, setMit3TaskId] = useState('');
+  const [outreachTarget, setOutreachTarget] = useState(30);
+  const [callTarget, setCallTarget] = useState(20);
+  const [morningNote, setMorningNote] = useState('');
+  const [availableTasks, setAvailableTasks] = useState([]);
+  const [savingMorningPlan, setSavingMorningPlan] = useState(false);
+
+  // Evening Review form state
+  const [eveningSummary, setEveningSummary] = useState(null);
+  const [win, setWin] = useState('');
+  const [lesson, setLesson] = useState('');
+  const [tomorrowNotes, setTomorrowNotes] = useState('');
+  const [tomorrowDraft, setTomorrowDraft] = useState(null);
+  const [savingEveningReview, setSavingEveningReview] = useState(false);
+
   // Update live clock every second
   useEffect(() => {
     const timer = setInterval(() => setNowTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Keyboard shortcuts: Alt+C (Log Call), Alt+N (Add Note)
+  // Keyboard shortcuts: Alt+C (Log Call), Alt+N (Add Note), Alt+M (Morning Plan)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.altKey && (e.key === 'c' || e.key === 'C')) {
@@ -60,6 +91,9 @@ export default function Today({ onNavigate }) {
       } else if (e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
         setNoteModalOpen(true);
+      } else if (e.altKey && (e.key === 'm' || e.key === 'M')) {
+        e.preventDefault();
+        openMorningModal();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -71,6 +105,13 @@ export default function Today({ onNavigate }) {
       setLoading(true);
       const res = await api.getTodaySummary();
       setData(res);
+
+      if (res.dailyPlan) {
+        setMit1(res.dailyPlan.mit1 || '');
+        setMit2(res.dailyPlan.mit2 || '');
+        setMit3(res.dailyPlan.mit3 || '');
+        setMorningNote(res.dailyPlan.morningNote || '');
+      }
     } catch (err) {
       toast.error(err.message || 'Failed to load today dashboard');
     } finally {
@@ -126,11 +167,6 @@ export default function Today({ onNavigate }) {
   // Submit Call Log
   const handleLogCallSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedLeadForCall && (!data?.overdueFollowUps[0] && !data?.todayFollowUps[0])) {
-      toast.warning('Please select a lead to log call for.');
-      return;
-    }
-
     const targetLeadId = selectedLeadForCall?.id || (data?.overdueFollowUps[0]?.lead?.id || data?.todayFollowUps[0]?.lead?.id);
     if (!targetLeadId) {
       toast.error('No lead identified for call');
@@ -149,12 +185,11 @@ export default function Today({ onNavigate }) {
         nextFollowUpAt: callFollowUpDate || undefined
       });
 
-      toast.success('Call logged successfully & timeline updated.');
+      toast.success('Call logged successfully!');
       setCallModalOpen(false);
       setCallSummary('');
       setCallNextAction('');
       setCallFollowUpDate('');
-      setSelectedLeadForCall(null);
       loadSummary();
     } catch (err) {
       toast.error(err.message || 'Failed to log call');
@@ -163,25 +198,25 @@ export default function Today({ onNavigate }) {
     }
   };
 
-  // Submit Note
+  // Submit Quick Note
   const handleCreateNoteSubmit = async (e) => {
     e.preventDefault();
     if (!noteBody.trim()) {
-      toast.warning('Note body cannot be empty.');
+      toast.warning('Note body cannot be empty');
       return;
     }
 
     try {
       setSavingNote(true);
-      const tagsArray = noteTags.split(',').map((t) => t.trim()).filter(Boolean);
+      const parsedTags = noteTags.split(',').map((t) => t.trim()).filter(Boolean);
       await api.createNote({
         title: noteTitle.trim() || undefined,
         body: noteBody.trim(),
-        tags: tagsArray,
-        ownerType: 'general'
+        ownerType: 'general',
+        tags: parsedTags.length > 0 ? parsedTags : ['General']
       });
 
-      toast.success('Quick note saved to Notebook.');
+      toast.success('Note saved to notebook!');
       setNoteModalOpen(false);
       setNoteTitle('');
       setNoteBody('');
@@ -189,6 +224,122 @@ export default function Today({ onNavigate }) {
       toast.error(err.message || 'Failed to save note');
     } finally {
       setSavingNote(false);
+    }
+  };
+
+  // Open Morning Plan Modal
+  const openMorningModal = async () => {
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const [planRes, tasksRes] = await Promise.all([
+        api.getDailyPlan(todayStr),
+        api.getTasks({ status: 'todo,doing', all: 'true' })
+      ]);
+
+      setAvailableTasks(tasksRes.tasks || []);
+
+      if (planRes.plan) {
+        setMit1(planRes.plan.mit1 || '');
+        setMit2(planRes.plan.mit2 || '');
+        setMit3(planRes.plan.mit3 || '');
+        setMit1TaskId(planRes.plan.mit1TaskId ? String(planRes.plan.mit1TaskId) : '');
+        setMit2TaskId(planRes.plan.mit2TaskId ? String(planRes.plan.mit2TaskId) : '');
+        setMit3TaskId(planRes.plan.mit3TaskId ? String(planRes.plan.mit3TaskId) : '');
+        setOutreachTarget(planRes.plan.outreachTarget || data?.targets?.emails?.target || 30);
+        setCallTarget(planRes.plan.callTarget || data?.targets?.calls?.target || 20);
+        setMorningNote(planRes.plan.morningNote || '');
+      } else {
+        setOutreachTarget(data?.targets?.emails?.target || 30);
+        setCallTarget(data?.targets?.calls?.target || 20);
+      }
+
+      setMorningModalOpen(true);
+    } catch (err) {
+      toast.error(err.message || 'Failed to prepare morning plan');
+    }
+  };
+
+  const handleSaveMorningPlan = async (e) => {
+    e.preventDefault();
+    try {
+      setSavingMorningPlan(true);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      await api.saveDailyPlan({
+        date: todayStr,
+        mit1: mit1.trim() || null,
+        mit2: mit2.trim() || null,
+        mit3: mit3.trim() || null,
+        mit1TaskId: mit1TaskId ? parseInt(mit1TaskId, 10) : null,
+        mit2TaskId: mit2TaskId ? parseInt(mit2TaskId, 10) : null,
+        mit3TaskId: mit3TaskId ? parseInt(mit3TaskId, 10) : null,
+        outreachTarget: parseInt(outreachTarget, 10) || 30,
+        callTarget: parseInt(callTarget, 10) || 20,
+        morningNote: morningNote.trim() || null
+      });
+
+      toast.success('Morning Plan saved! Go execute your day.');
+      setMorningModalOpen(false);
+      loadSummary();
+    } catch (err) {
+      toast.error(err.message || 'Failed to save morning plan');
+    } finally {
+      setSavingMorningPlan(false);
+    }
+  };
+
+  // Open Evening Review Modal
+  const openEveningModal = async () => {
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const [summaryRes, draftRes] = await Promise.all([
+        api.getDailyReviewSummary(todayStr),
+        api.getTomorrowDraft(todayStr)
+      ]);
+
+      setEveningSummary(summaryRes);
+      setTomorrowDraft(draftRes.draft);
+      if (summaryRes.review) {
+        setWin(summaryRes.review.win || '');
+        setLesson(summaryRes.review.lesson || '');
+        setTomorrowNotes(summaryRes.review.tomorrowNotes || '');
+      }
+      setEveningModalOpen(true);
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate evening review');
+    }
+  };
+
+  const handleSaveEveningReview = async (e) => {
+    e.preventDefault();
+    try {
+      setSavingEveningReview(true);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      await api.saveDailyReview({
+        date: todayStr,
+        win: win.trim() || null,
+        lesson: lesson.trim() || null,
+        tomorrowNotes: tomorrowNotes.trim() || null
+      });
+
+      toast.success('Evening Review completed! Consistency streak updated 🔥');
+      setEveningModalOpen(false);
+      loadSummary();
+    } catch (err) {
+      toast.error(err.message || 'Failed to save evening review');
+    } finally {
+      setSavingEveningReview(false);
+    }
+  };
+
+  // Toggle task done directly from dashboard
+  const handleToggleTaskDone = async (taskId, currentStatus) => {
+    try {
+      const newStatus = currentStatus === 'done' ? 'todo' : 'done';
+      await api.updateTask(taskId, { status: newStatus });
+      toast.success(newStatus === 'done' ? 'Task checked off!' : 'Task reopened');
+      loadSummary();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update task');
     }
   };
 
@@ -209,7 +360,7 @@ export default function Today({ onNavigate }) {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Top Header with Dual Timezones & Shortcuts */}
+      {/* Top Header with Dual Timezones, Consistency Streaks & Shortcuts */}
       <div
         style={{
           display: 'flex',
@@ -217,7 +368,7 @@ export default function Today({ onNavigate }) {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '16px',
-          marginBottom: '24px'
+          marginBottom: '20px'
         }}
       >
         <div>
@@ -225,30 +376,54 @@ export default function Today({ onNavigate }) {
             Today's Command Center
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-sm)' }}>
-            One-screen founder cockpit for calls, follow-ups, and daily outreach rhythm.
+            One-screen founder cockpit for calls, 3 MITs, calendar, and daily outreach rhythm.
           </p>
         </div>
 
-        {/* Dual Timezone Banner */}
+        {/* Streaks & Dual Timezone Banner */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Consistency Streaks */}
+          {data?.streaks && (
+            <div
+              style={{
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+              title="Daily consistency streaks: review completion & outreach targets"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--font-xs)', color: 'var(--gold-primary)', fontWeight: 700 }}>
+                <Flame size={16} fill="var(--gold-primary)" /> {data.streaks.reviewStreak} Day Review Streak
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--font-xs)', color: 'var(--emerald-accent)', fontWeight: 700 }}>
+                <Target size={16} /> {data.streaks.targetStreak} Day Target Hit
+              </div>
+            </div>
+          )}
+
+          {/* Dual Timezone Cards */}
           <div
             style={{
               background: 'var(--surface-elevated)',
-              padding: '8px 16px',
+              padding: '6px 14px',
               borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border-color)',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px'
+              gap: '8px'
             }}
           >
-            <Clock size={16} color="var(--gold-primary)" />
+            <Clock size={15} color="var(--gold-primary)" />
             <div>
-              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
                 🇦🇪 Dubai (GST)
               </div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-sm)' }}>
-                {formatTime(nowTime, 'Asia/Dubai')} <span style={{ color: 'var(--text-dim)', fontSize: '11px' }}>({formatDate(nowTime, 'Asia/Dubai')})</span>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-xs)' }}>
+                {formatTime(nowTime, 'Asia/Dubai')}
               </div>
             </div>
           </div>
@@ -256,26 +431,43 @@ export default function Today({ onNavigate }) {
           <div
             style={{
               background: 'var(--surface-elevated)',
-              padding: '8px 16px',
+              padding: '6px 14px',
               borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border-color)',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px'
+              gap: '8px'
             }}
           >
-            <Clock size={16} color="var(--emerald-accent)" />
+            <Clock size={15} color="var(--emerald-accent)" />
             <div>
-              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-                🇮🇳 India Factory (IST)
+              <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+                🇮🇳 Bhadohi (IST)
               </div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-sm)' }}>
-                {formatTime(nowTime, 'Asia/Kolkata')} <span style={{ color: 'var(--text-dim)', fontSize: '11px' }}>({formatDate(nowTime, 'Asia/Kolkata')})</span>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-xs)' }}>
+                {formatTime(nowTime, 'Asia/Kolkata')}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Sun}
+              onClick={openMorningModal}
+              title="Shortcut: Alt+M"
+            >
+              Morning Plan
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Moon}
+              onClick={openEveningModal}
+            >
+              Evening Review
+            </Button>
             <Button
               variant="secondary"
               size="sm"
@@ -283,7 +475,7 @@ export default function Today({ onNavigate }) {
               onClick={() => { setSelectedLeadForCall(null); setCallModalOpen(true); }}
               title="Shortcut: Alt+C"
             >
-              Log Call <span style={{ fontSize: '10px', opacity: 0.6 }}>(Alt+C)</span>
+              Log Call
             </Button>
             <Button
               variant="secondary"
@@ -292,11 +484,236 @@ export default function Today({ onNavigate }) {
               onClick={() => setNoteModalOpen(true)}
               title="Shortcut: Alt+N"
             >
-              Quick Note <span style={{ fontSize: '10px', opacity: 0.6 }}>(Alt+N)</span>
+              Note
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Ritual Prompt Banner (Dynamic based on time of day and completion) */}
+      {data?.rituals?.needsMorningPlan && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(18, 26, 45, 0.8))',
+            border: '1px solid var(--gold-primary)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 18px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Sun size={22} color="var(--gold-primary)" />
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 'var(--font-sm)' }}>
+                Morning Ritual: Lock in Your 3 MITs
+              </div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-xs)' }}>
+                Focus your day on what moves the needle for Knotiq Rugs before diving into incoming messages.
+              </div>
+            </div>
+          </div>
+          <Button variant="primary" size="sm" onClick={openMorningModal}>
+            Complete Morning Plan →
+          </Button>
+        </div>
+      )}
+
+      {data?.rituals?.needsEveningReview && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.15), rgba(18, 26, 45, 0.8))',
+            border: '1px solid var(--emerald-accent)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 18px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Moon size={22} color="var(--emerald-accent)" />
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 'var(--font-sm)' }}>
+                Evening Ritual: Review Today & Lock in Streak
+              </div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-xs)' }}>
+                Celebrate your wins, record key lessons, and preview tomorrow's auto-generated agenda.
+              </div>
+            </div>
+          </div>
+          <Button variant="primary" size="sm" onClick={openEveningModal}>
+            Complete Evening Review →
+          </Button>
+        </div>
+      )}
+
+      {/* 3 MITs (Most Important Tasks) Showcase Widget */}
+      <Card style={{ marginBottom: '20px', padding: '16px 20px', borderLeft: '4px solid var(--gold-primary)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Star size={18} fill="var(--gold-primary)" color="var(--gold-primary)" />
+            <h2 style={{ fontSize: 'var(--font-md)', color: 'var(--text-primary)', margin: 0, fontWeight: 700 }}>
+              Today's 3 Most Important Tasks (MITs)
+            </h2>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {data?.dailyPlan?.morningNote && (
+              <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', fontStyle: 'italic', maxWidth: '340px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                "{data.dailyPlan.morningNote}"
+              </span>
+            )}
+            <Button variant="ghost" size="xs" onClick={openMorningModal}>
+              {data?.dailyPlan ? 'Edit MITs' : 'Set Today\'s MITs'}
+            </Button>
+          </div>
+        </div>
+
+        {!data?.dailyPlan ? (
+          <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 'var(--font-sm)' }}>
+            No MITs set for today yet.{' '}
+            <button
+              type="button"
+              onClick={openMorningModal}
+              style={{ background: 'none', border: 'none', color: 'var(--gold-primary)', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+            >
+              Start Morning Plan now
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+            {/* MIT 1 */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 14px',
+                background: data.dailyPlan.mit1Status ? 'rgba(16, 185, 129, 0.1)' : 'var(--surface-subtle)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => data.dailyPlan.mit1TaskId && handleToggleTaskDone(data.dailyPlan.mit1TaskId, data.dailyPlan.mit1Status ? 'done' : 'todo')}
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '4px',
+                  border: data.dailyPlan.mit1Status ? '2px solid var(--emerald-accent)' : '2px solid var(--border-color)',
+                  background: data.dailyPlan.mit1Status ? 'var(--emerald-accent)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: data.dailyPlan.mit1TaskId ? 'pointer' : 'default',
+                  color: '#fff',
+                  flexShrink: 0
+                }}
+              >
+                {data.dailyPlan.mit1Status && <Check size={12} strokeWidth={3} />}
+              </button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '10px', color: 'var(--gold-primary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  MIT #1
+                </div>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: data.dailyPlan.mit1Status ? 'var(--text-tertiary)' : 'var(--text-primary)', textDecoration: data.dailyPlan.mit1Status ? 'line-through' : 'none' }}>
+                  {data.dailyPlan.mit1 || 'Not specified'}
+                </div>
+              </div>
+            </div>
+
+            {/* MIT 2 */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 14px',
+                background: data.dailyPlan.mit2Status ? 'rgba(16, 185, 129, 0.1)' : 'var(--surface-subtle)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => data.dailyPlan.mit2TaskId && handleToggleTaskDone(data.dailyPlan.mit2TaskId, data.dailyPlan.mit2Status ? 'done' : 'todo')}
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '4px',
+                  border: data.dailyPlan.mit2Status ? '2px solid var(--emerald-accent)' : '2px solid var(--border-color)',
+                  background: data.dailyPlan.mit2Status ? 'var(--emerald-accent)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: data.dailyPlan.mit2TaskId ? 'pointer' : 'default',
+                  color: '#fff',
+                  flexShrink: 0
+                }}
+              >
+                {data.dailyPlan.mit2Status && <Check size={12} strokeWidth={3} />}
+              </button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '10px', color: 'var(--gold-primary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  MIT #2
+                </div>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: data.dailyPlan.mit2Status ? 'var(--text-tertiary)' : 'var(--text-primary)', textDecoration: data.dailyPlan.mit2Status ? 'line-through' : 'none' }}>
+                  {data.dailyPlan.mit2 || 'Not specified'}
+                </div>
+              </div>
+            </div>
+
+            {/* MIT 3 */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 14px',
+                background: data.dailyPlan.mit3Status ? 'rgba(16, 185, 129, 0.1)' : 'var(--surface-subtle)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => data.dailyPlan.mit3TaskId && handleToggleTaskDone(data.dailyPlan.mit3TaskId, data.dailyPlan.mit3Status ? 'done' : 'todo')}
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '4px',
+                  border: data.dailyPlan.mit3Status ? '2px solid var(--emerald-accent)' : '2px solid var(--border-color)',
+                  background: data.dailyPlan.mit3Status ? 'var(--emerald-accent)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: data.dailyPlan.mit3TaskId ? 'pointer' : 'default',
+                  color: '#fff',
+                  flexShrink: 0
+                }}
+              >
+                {data.dailyPlan.mit3Status && <Check size={12} strokeWidth={3} />}
+              </button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '10px', color: 'var(--gold-primary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  MIT #3
+                </div>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: data.dailyPlan.mit3Status ? 'var(--text-tertiary)' : 'var(--text-primary)', textDecoration: data.dailyPlan.mit3Status ? 'line-through' : 'none' }}>
+                  {data.dailyPlan.mit3 || 'Not specified'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* Progress Cards: Emails, WhatsApps, Calls vs Targets */}
       <div
@@ -362,11 +779,136 @@ export default function Today({ onNavigate }) {
         </Card>
       </div>
 
+      {/* Grid: Calendar Events Today & Tasks Due Today */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+        {/* Calendar Events Today */}
+        <Card
+          title="Today's Schedule (UAE & India)"
+          icon={CalendarIcon}
+          action={
+            <button
+              type="button"
+              onClick={() => onNavigate ? onNavigate('/calendar') : window.location.assign('/calendar')}
+              style={{ background: 'none', border: 'none', color: 'var(--gold-primary)', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              Full Calendar <ExternalLink size={12} />
+            </button>
+          }
+        >
+          {(!data?.calendarEventsToday || data.calendarEventsToday.length === 0) ? (
+            <div style={{ padding: '24px 10px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 'var(--font-xs)' }}>
+              No meetings or time blocks scheduled for today.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {data.calendarEventsToday.map((ev) => {
+                const startD = new Date(ev.startAt);
+                const uaeTime = startD.toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit', hour12: true });
+                const istTime = startD.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+
+                return (
+                  <div
+                    key={ev.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      background: 'var(--surface-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      borderLeft: '3px solid var(--primary-color)',
+                      fontSize: 'var(--font-xs)'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{ev.title}</div>
+                      <div style={{ color: 'var(--text-dim)', fontSize: '11px' }}>
+                        {ev.location || 'Online'} • {ev.lead?.businessName ? `Lead: ${ev.lead.businessName}` : 'General'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 700, color: 'var(--gold-primary)' }}>{uaeTime} GST</div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>{istTime} IST</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Tasks Due Today */}
+        <Card
+          title="Tasks Due Today"
+          icon={CheckSquare}
+          action={
+            <button
+              type="button"
+              onClick={() => onNavigate ? onNavigate('/tasks') : window.location.assign('/tasks')}
+              style={{ background: 'none', border: 'none', color: 'var(--gold-primary)', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              All Tasks <ExternalLink size={12} />
+            </button>
+          }
+        >
+          {(!data?.tasksDueToday || data.tasksDueToday.length === 0) ? (
+            <div style={{ padding: '24px 10px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 'var(--font-xs)' }}>
+              No tasks due today. Everything on schedule!
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {data.tasksDueToday.map((t) => (
+                <div
+                  key={t.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 12px',
+                    background: 'var(--surface-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    borderLeft: t.isMIT ? '3px solid var(--gold-primary)' : '3px solid var(--border-color)',
+                    fontSize: 'var(--font-xs)'
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTaskDone(t.id, t.status)}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '4px',
+                      border: '2px solid var(--border-color)',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      flexShrink: 0
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {t.title}
+                    </div>
+                    <div style={{ color: 'var(--text-dim)', fontSize: '11px', textTransform: 'capitalize' }}>
+                      {t.category} • {t.priority} priority
+                    </div>
+                  </div>
+                  {t.isMIT && (
+                    <span style={{ fontSize: '9px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--gold-primary)', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>
+                      MIT
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
       {/* Top 3 Priorities */}
       {data?.priorities && data.priorities.length > 0 && (
         <div style={{ marginBottom: '24px' }}>
           <h2 style={{ fontSize: 'var(--font-md)', color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Top Priorities For Today
+            Top Strategic Priorities
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
             {data.priorities.map((item, idx) => (
@@ -638,6 +1180,228 @@ export default function Today({ onNavigate }) {
           )}
         </Card>
       </div>
+
+      {/* Modal: Morning Plan (3 MITs & Targets) */}
+      <Modal
+        open={morningModalOpen}
+        onClose={() => setMorningModalOpen(false)}
+        title="☀️ Founder Morning Plan & 3 MITs"
+      >
+        <form onSubmit={handleSaveMorningPlan} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-xs)', margin: 0 }}>
+            Choose up to 3 Most Important Tasks for today. You can pick an existing task or type a new one.
+          </p>
+
+          <Field label="★ MIT #1 (Top Priority)">
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Call 10 luxury villa interior designers in Dubai"
+              value={mit1}
+              onChange={(e) => setMit1(e.target.value)}
+              required
+            />
+            {availableTasks.length > 0 && (
+              <select
+                className="select"
+                style={{ marginTop: '4px', fontSize: '11px', height: '30px' }}
+                value={mit1TaskId}
+                onChange={(e) => {
+                  setMit1TaskId(e.target.value);
+                  const t = availableTasks.find((x) => String(x.id) === e.target.value);
+                  if (t) setMit1(t.title);
+                }}
+              >
+                <option value="">Or select from open tasks...</option>
+                {availableTasks.map((t) => (
+                  <option key={t.id} value={t.id}>{t.title} ({t.category})</option>
+                ))}
+              </select>
+            )}
+          </Field>
+
+          <Field label="★ MIT #2">
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Approve custom wool dyeing batch at Bhadohi mill"
+              value={mit2}
+              onChange={(e) => setMit2(e.target.value)}
+            />
+            {availableTasks.length > 0 && (
+              <select
+                className="select"
+                style={{ marginTop: '4px', fontSize: '11px', height: '30px' }}
+                value={mit2TaskId}
+                onChange={(e) => {
+                  setMit2TaskId(e.target.value);
+                  const t = availableTasks.find((x) => String(x.id) === e.target.value);
+                  if (t) setMit2(t.title);
+                }}
+              >
+                <option value="">Or select from open tasks...</option>
+                {availableTasks.map((t) => (
+                  <option key={t.id} value={t.id}>{t.title} ({t.category})</option>
+                ))}
+              </select>
+            )}
+          </Field>
+
+          <Field label="★ MIT #3">
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Send 5 hotel procurement quotations with yarn swatches"
+              value={mit3}
+              onChange={(e) => setMit3(e.target.value)}
+            />
+            {availableTasks.length > 0 && (
+              <select
+                className="select"
+                style={{ marginTop: '4px', fontSize: '11px', height: '30px' }}
+                value={mit3TaskId}
+                onChange={(e) => {
+                  setMit3TaskId(e.target.value);
+                  const t = availableTasks.find((x) => String(x.id) === e.target.value);
+                  if (t) setMit3(t.title);
+                }}
+              >
+                <option value="">Or select from open tasks...</option>
+                {availableTasks.map((t) => (
+                  <option key={t.id} value={t.id}>{t.title} ({t.category})</option>
+                ))}
+              </select>
+            )}
+          </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Field label="Daily Outreach Target">
+              <input
+                type="number"
+                min="0"
+                className="input"
+                value={outreachTarget}
+                onChange={(e) => setOutreachTarget(e.target.value)}
+              />
+            </Field>
+
+            <Field label="Daily Call Target">
+              <input
+                type="number"
+                min="0"
+                className="input"
+                value={callTarget}
+                onChange={(e) => setCallTarget(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <Field label="Morning Intention / Note">
+            <Textarea
+              rows={2}
+              placeholder="Today's focus: Quality conversations over quantity..."
+              value={morningNote}
+              onChange={(e) => setMorningNote(e.target.value)}
+            />
+          </Field>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+            <Button variant="secondary" onClick={() => setMorningModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={savingMorningPlan} type="submit">
+              Save Morning Plan
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Evening Review */}
+      <Modal
+        open={eveningModalOpen}
+        onClose={() => setEveningModalOpen(false)}
+        title="🌙 Founder Evening Review & Debrief"
+      >
+        <form onSubmit={handleSaveEveningReview} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Day Metrics Auto-Summary */}
+          {eveningSummary && (
+            <div style={{ padding: '12px', background: 'var(--surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 600, marginBottom: '6px' }}>
+                Today's Results Summary
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', textAlign: 'center' }}>
+                <div style={{ padding: '6px', background: 'var(--surface-subtle)', borderRadius: '4px' }}>
+                  <div style={{ fontSize: 'var(--font-md)', fontWeight: 700, color: '#3B82F6' }}>{eveningSummary.metrics?.callsLogged || 0}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>Calls</div>
+                </div>
+                <div style={{ padding: '6px', background: 'var(--surface-subtle)', borderRadius: '4px' }}>
+                  <div style={{ fontSize: 'var(--font-md)', fontWeight: 700, color: 'var(--gold-primary)' }}>{eveningSummary.metrics?.emailsSent || 0}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>Emails</div>
+                </div>
+                <div style={{ padding: '6px', background: 'var(--surface-subtle)', borderRadius: '4px' }}>
+                  <div style={{ fontSize: 'var(--font-md)', fontWeight: 700, color: 'var(--emerald-accent)' }}>{eveningSummary.metrics?.whatsappsSent || 0}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>WhatsApp</div>
+                </div>
+                <div style={{ padding: '6px', background: 'var(--surface-subtle)', borderRadius: '4px' }}>
+                  <div style={{ fontSize: 'var(--font-md)', fontWeight: 700, color: 'var(--text-primary)' }}>{eveningSummary.metrics?.tasksCompleted || 0}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>Tasks Done</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <Field label="🏆 Biggest Win of the Day">
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Secured initial sample order for 5 custom rugs with Oberoi hotel procurement"
+              value={win}
+              onChange={(e) => setWin(e.target.value)}
+              required
+            />
+          </Field>
+
+          <Field label="💡 Lesson / What to improve tomorrow">
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. WhatsApp follow-ups in afternoon get 2x faster replies than morning emails"
+              value={lesson}
+              onChange={(e) => setLesson(e.target.value)}
+            />
+          </Field>
+
+          {/* Tomorrow Auto-Draft Preview */}
+          {tomorrowDraft && (
+            <div style={{ padding: '10px 14px', background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', fontSize: 'var(--font-xs)', color: 'var(--text-secondary)' }}>
+              <div style={{ fontWeight: 600, color: 'var(--gold-primary)', marginBottom: '4px' }}>
+                Tomorrow's Pipeline Auto-Draft:
+              </div>
+              <div>• {tomorrowDraft.followUpsCount || 0} follow-ups scheduled</div>
+              <div>• {tomorrowDraft.tasksCount || 0} task deadlines</div>
+              <div>• {tomorrowDraft.eventsCount || 0} calendar events</div>
+            </div>
+          )}
+
+          <Field label="Notes for Tomorrow / Brain Dump">
+            <Textarea
+              rows={3}
+              placeholder="Add key items, reminder thoughts, or intentions for tomorrow..."
+              value={tomorrowNotes}
+              onChange={(e) => setTomorrowNotes(e.target.value)}
+            />
+          </Field>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+            <Button variant="secondary" onClick={() => setEveningModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={savingEveningReview} type="submit">
+              Complete Evening Review
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Modal: Log Phone Call */}
       <Modal

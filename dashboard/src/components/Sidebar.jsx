@@ -17,6 +17,7 @@ import {
   Sparkles,
   Layers,
   Send,
+  CheckSquare,
   X
 } from 'lucide-react';
 
@@ -25,6 +26,7 @@ const NAV_GROUPS = [
     title: 'Command Center',
     items: [
       { path: '/today', label: 'Today Hub', icon: Sun },
+      { path: '/tasks', label: 'Tasks & MITs', icon: CheckSquare },
       { path: '/leads', label: 'Leads Pipeline', icon: Users },
       { path: '/calls', label: 'Calls & Scripts', icon: PhoneCall },
       { path: '/calendar', label: 'Calendar', icon: Calendar },

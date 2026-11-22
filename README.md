@@ -117,6 +117,13 @@ graph TD
 - **Dual Notifications:** Real-time Telegram Bot Markdown alerts + Nodemailer SMTP digest emails.
 - **Anti-Spam Outreach Engine:** Daily send cap (30/day per user), pre-send suppression checks against `OptOut`, and Gemini cold copy generation.
 
+### 📋 Tasks, Internal Calendar & Daily Planner Rituals (Phase B)
+- **Task Management Engine:** List & Kanban boards, categories, priorities, MIT flags, lead linkage (appears in lead activity timeline), and recurring tasks (daily, weekdays, weekly, monthly).
+- **Internal Unified Calendar:** Consolidates meetings, task deadlines, follow-ups, and scheduled calls to make (`itemType: 'call'`) with time overlap conflict detection and dual UAE (GST) / India (IST) time display.
+- **Polymorphic Notebook:** Notes attach seamlessly to leads, calls, tasks, and calendar events (`ownerType: 'event'`), directly accessible in detail drawers.
+- **Daily Planner Rituals & Two Streaks:** Morning plan (3 MITs & daily intentions), Evening review with auto-summaries, auto-drafted tomorrow plan, and dual consistency streaks (Evening Review streak & Daily Targets hit streak) computed in user's timezone with day-boundary precision.
+- **Founder Reminders:** Automated Telegram and email alerts for morning briefs, evening nudges, and upcoming event notices with duplicate-prevention idempotency (`ReminderLog`).
+
 ---
 
 ## 4. Quickstart Guide
@@ -183,7 +190,7 @@ graph TD
 | Command | Description |
 | :--- | :--- |
 | `npm start` | Starts Express API and serves built dashboard on port 5000 |
-| `npm test` | Runs complete 82-test automated test suite across all 7 phases via Vitest |
+| `npm test` | Runs complete automated test suite (153 tests across all phases) via Vitest |
 | `npm run build` | Compiles React 19 + Vite dashboard into `dashboard/dist` |
 | `npm run migrate` | Executes idempotent database migrations tracking `SequelizeMeta` |
 | `npm run seed` | Seeds 65 international locations and 19 multilingual trade keyword sets |
@@ -200,10 +207,33 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
 | Router | Method | Path | Description |
 | :--- | :--- | :--- | :--- |
 | **System** | `GET` | `/health` | Uptime, memory usage, and database connection status |
-| **Leads** | `GET` | `/api/leads` | Paginated search, filter by country/city/leadType/score |
-| | `GET` | `/api/leads/:id` | Lead details with score explanation & contact points |
-| | `PATCH` | `/api/leads/:id` | Update status (`new`, `contacted`, `converted`, `rejected`) or notes |
-| | `POST` | `/api/leads/bulk-status` | Bulk update lead statuses |
+| **Today Hub** | `GET` | `/api/today/summary` | Ultra-fast dashboard (<2s) with dual GST/IST times, targets, 3 MITs, calendar, and streaks |
+| **Tasks** | `GET` | `/api/tasks` | Filter tasks by category, priority, status, MIT, search, or lead |
+| | `POST` | `/api/tasks` | Create task with recurrence rules and MIT prioritization |
+| | `PATCH` | `/api/tasks/:id` | Update task; auto-spawns next occurrence on completion for recurring tasks |
+| | `DELETE` | `/api/tasks/:id` | Delete task with audit logging |
+| **Calendar** | `GET` | `/api/calendar` | Unified schedule merging events, tasks by dueAt, follow-ups, and calls with conflict detection |
+| | `POST` | `/api/calendar/events` | Schedule calendar event with dual GST & IST display |
+| | `PATCH` | `/api/calendar/events/:id` | Reschedule or edit calendar event |
+| | `DELETE` | `/api/calendar/events/:id` | Delete calendar event |
+| **Planner** | `GET` | `/api/planner/daily-plan` | Get founder's morning plan and 3 MITs for a date |
+| | `POST` | `/api/planner/daily-plan` | Save morning plan (3 MITs, targets, morning intention) |
+| | `GET` | `/api/planner/daily-review/summary`| Auto-summarize today's achievements (calls, emails, WhatsApps, tasks) |
+| | `POST` | `/api/planner/daily-review` | Save evening review (win, lesson, tomorrow notes) and lock streak |
+| | `GET` | `/api/planner/streaks` | Consistency streaks for daily reviews and target achievements |
+| | `GET` | `/api/planner/tomorrow-draft`| Auto-generated pipeline agenda for tomorrow |
+| **Calls** | `GET` | `/api/calls` | Paginated call history with lead details and outcomes |
+| | `POST` | `/api/calls` | Log call outcome (enforces OptOut check and updates lead status) |
+| | `GET` | `/api/calls/scripts` | Buyer-specific call scripts for 8 buyer categories |
+| **Notes** | `GET` | `/api/notes` | Polymorphic notes with markdown, search, and tag filters |
+| | `POST` | `/api/notes` | Create note linked to lead, call, task, or campaign |
+| **Follow-ups**| `GET` | `/api/follow-ups/today` | Pending and overdue scheduled follow-ups |
+| | `PATCH`| `/api/follow-ups/:id/status`| Mark follow-up as done |
+| **Leads** | `GET` | `/api/leads` | Paginated search, filter by country/city/buyerType/status/score |
+| | `GET` | `/api/leads/:id` | Lead details with score explanation, buyer type, and timeline |
+| | `PATCH` | `/api/leads/:id` | Update status, buyerType, priority, or notes |
+| | `POST` | `/api/leads/:id/mark-replied` | Cancel pending follow-ups and transition status to replied |
+| | `POST` | `/api/leads/:id/classify` | Rule-based classification with Gemini fallback |
 | **Scrape** | `POST` | `/api/scrape/run` | Execute scraping job across selected engine and location |
 | | `GET` | `/api/scrape/runs` | List past scraping run logs with duration & metrics |
 | **Presets** | `GET` | `/api/presets` | List saved search query presets |
@@ -214,9 +244,10 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
 | | `GET` | `/api/exports/download/:token` | 15-minute HMAC-signed file download endpoint |
 | **Outreach** | `GET` | `/api/outreach/stats` | Daily outreach count and quota tracker |
 | | `POST` | `/api/outreach/draft` | Generate AI cold email or template draft |
-| | `POST` | `/api/outreach/record-sent` | Increment daily send counter & mark lead contacted |
+| | `POST` | `/api/outreach/record-sent` | Increment daily send counter & auto-schedule Day 4/7 follow-ups |
 | **OptOut** | `POST` | `/api/optout` | Add email, domain, or phone to suppression blacklist |
-| **Settings** | `GET` | `/api/settings` | System diagnostics, Gemini API limit, and DB dialect |
+| **Settings** | `GET` | `/api/settings/user` | Founder preferences, timezone, reminder times, and targets |
+| | `PATCH`| `/api/settings/user` | Update daily targets and reminder preferences |
 
 ---
 

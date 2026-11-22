@@ -2,7 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export default function Modal({
-  isOpen,
+  isOpen: propIsOpen,
+  open,
   onClose,
   title,
   children,
@@ -11,6 +12,7 @@ export default function Modal({
   size = 'md', // 'sm' | 'md' | 'lg'
   hasUnsavedChanges = false
 }) {
+  const isOpen = propIsOpen !== undefined ? propIsOpen : Boolean(open);
   const modalRef = useRef(null);
 
   const handleClose = () => {

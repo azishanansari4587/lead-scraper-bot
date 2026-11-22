@@ -14,6 +14,7 @@ class SchedulerEngine {
   constructor() {
     this.cronTasks = new Map(); // scheduleId -> cronTask
     this.activeRunLocks = new Set(); // Set of currently executing schedule IDs
+    this.reminderCron = null;
     this.isStarted = false;
   }
 
@@ -25,6 +26,21 @@ class SchedulerEngine {
     this.isStarted = true;
     logger.info('Starting Background Scheduler Engine...');
     await this.reloadSchedules();
+
+    // Start 1-minute reminder cron for founder alerts (morning brief, evening review nudge, event warnings)
+    try {
+      const founderReminderService = require('../reminders/founderReminderService');
+      this.reminderCron = cron.schedule('* * * * *', async () => {
+        try {
+          await founderReminderService.checkAndDispatchReminders();
+        } catch (rErr) {
+          logger.error({ err: rErr.message }, 'Error in founder reminder check');
+        }
+      });
+      logger.info('Registered founder reminder background cron task (every minute)');
+    } catch (err) {
+      logger.warn({ err: err.message }, 'Could not initialize founder reminder cron');
+    }
   }
 
   /**
@@ -32,6 +48,11 @@ class SchedulerEngine {
    */
   stop() {
     logger.info('Stopping Background Scheduler Engine...');
+    if (this.reminderCron) {
+      this.reminderCron.stop();
+      if (typeof this.reminderCron.destroy === 'function') this.reminderCron.destroy();
+      this.reminderCron = null;
+    }
     for (const [id, task] of this.cronTasks.entries()) {
       task.stop();
       if (typeof task.destroy === 'function') task.destroy();

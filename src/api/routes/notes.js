@@ -12,7 +12,7 @@ const AuditLog = require('../../models/AuditLog');
 const router = express.Router();
 
 const noteSchema = z.object({
-  ownerType: z.enum(['lead', 'call', 'task', 'campaign', 'general']).default('lead'),
+  ownerType: z.enum(['lead', 'call', 'task', 'campaign', 'general', 'event']).default('lead'),
   ownerId: z.string().optional().nullable(),
   title: z.string().max(255).optional().nullable(),
   body: z.string().min(1, 'Note content cannot be empty'),
