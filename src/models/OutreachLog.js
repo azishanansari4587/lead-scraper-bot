@@ -16,6 +16,18 @@ const OutreachLog = sequelize.define('OutreachLog', {
     type: DataTypes.INTEGER,
     allowNull: true
   },
+  campaignId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  templateId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  variant: {
+    type: DataTypes.STRING(10),
+    defaultValue: 'A'
+  },
   channel: {
     type: DataTypes.ENUM('email', 'whatsapp'),
     allowNull: false

@@ -56,6 +56,10 @@ const Call = sequelize.define('Call', {
   createdBy: {
     type: DataTypes.STRING(100),
     allowNull: true
+  },
+  campaignId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: 'Calls',

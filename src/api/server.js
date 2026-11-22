@@ -131,12 +131,18 @@ const todayRouter = require('./routes/today');
 const tasksRouter = require('./routes/tasks');
 const calendarRouter = require('./routes/calendar');
 const plannerRouter = require('./routes/planner');
+const contentRouter = require('./routes/content');
+const campaignsRouter = require('./routes/campaigns');
+const marketingRouter = require('./routes/marketing');
 
 // Mount API routes
 app.use('/api/today', requireAuth, todayRouter);
 app.use('/api/tasks', requireAuth, tasksRouter);
 app.use('/api/calendar', requireAuth, calendarRouter);
 app.use('/api/planner', requireAuth, plannerRouter);
+app.use('/api/content', requireAuth, contentRouter);
+app.use('/api/campaigns', requireAuth, campaignsRouter);
+app.use('/api/marketing', requireAuth, marketingRouter);
 app.use('/api/calls', requireAuth, callsRouter);
 app.use('/api/notes', requireAuth, notesRouter);
 app.use('/api/follow-ups', requireAuth, followupsRouter);

@@ -51,6 +51,14 @@ const UserSettings = sequelize.define('UserSettings', {
   remindersEnabled: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  weeklyPostTarget: {
+    type: DataTypes.INTEGER,
+    defaultValue: 5
+  },
+  contentReminderTime: {
+    type: DataTypes.STRING(10), // HH:mm
+    defaultValue: '10:00'
   }
 }, {
   tableName: 'UserSettings',

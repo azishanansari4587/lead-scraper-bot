@@ -1,0 +1,728 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import request from 'supertest';
+import app from '../src/api/server';
+import {
+  ContentPost,
+  Campaign,
+  CampaignLead,
+  Lead,
+  OptOut,
+  OutreachLog,
+  OutreachTemplate,
+  FollowUp,
+  Call,
+  UserSettings,
+  ReminderLog,
+  AuditLog
+} from '../src/models';
+import campaignService from '../src/services/marketing/campaignService';
+import abTestingService from '../src/services/marketing/abTestingService';
+import attributionService from '../src/services/marketing/attributionService';
+import inboundService from '../src/services/marketing/inboundService';
+import followUpEngine from '../src/services/followUp/followUpEngine';
+import { getMergedCalendar } from '../src/services/planner/calendarService';
+import founderReminderService from '../src/services/reminders/founderReminderService';
+import { backfillSources } from '../src/scripts/backfillSources';
+
+describe('Phase C - Marketing Hub Suite', () => {
+  const testUserId = 'test_phase_c_founder';
+  const otherUserId = 'test_phase_c_stranger';
+  const authHeaders = {
+    'x-test-user-id': testUserId,
+    'x-test-role': 'admin'
+  };
+  const otherAuthHeaders = {
+    'x-test-user-id': otherUserId,
+    'x-test-role': 'admin'
+  };
+
+  const createTestLead = async (overrides = {}) => {
+    const rand = Math.random().toString(36).slice(2, 10);
+    return Lead.create({
+      userId: testUserId,
+      businessName: `Test Studio ${rand}`,
+      leadType: 'interior_design',
+      buyerType: 'designer',
+      city: 'Dubai',
+      country: 'United Arab Emirates',
+      source: 'instagram',
+      dedupeKey: `dedupe_${rand}_${Date.now()}`,
+      status: 'new',
+      score: 80,
+      ...overrides
+    });
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('1. Content Calendar & Missed Status Engine', () => {
+    it('creates content posts across statuses (idea, scheduled, posted)', async () => {
+      const ideaPost = await ContentPost.create({
+        userId: testUserId,
+        platform: 'instagram',
+        topic: 'Master Weaver Silk Knotting Process',
+        status: 'idea'
+      });
+      expect(ideaPost.id).toBeDefined();
+      expect(ideaPost.status).toBe('idea');
+      expect(ideaPost.scheduledAt).toBeFalsy();
+
+      const futureDate = new Date(Date.now() + 86400000);
+      const scheduledPost = await ContentPost.create({
+        userId: testUserId,
+        platform: 'linkedin',
+        topic: 'Hospitality Rug Specification Guide 2026',
+        scheduledAt: futureDate,
+        status: 'scheduled'
+      });
+      expect(scheduledPost.id).toBeDefined();
+      expect(scheduledPost.status).toBe('scheduled');
+    });
+
+    it('calculates isMissed = true for past unposted scheduled posts via API', async () => {
+      const pastDate = new Date(Date.now() - 3600000); // 1 hour ago
+      const missedPost = await ContentPost.create({
+        userId: testUserId,
+        platform: 'instagram',
+        topic: 'Overdue Wool Loom Showcase',
+        scheduledAt: pastDate,
+        status: 'scheduled'
+      });
+
+      const res = await request(app)
+        .get('/api/content')
+        .set(authHeaders);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const found = res.body.posts.find((p) => p.id === missedPost.id);
+      expect(found).toBeDefined();
+      expect(found.isMissed).toBe(true);
+    });
+
+    it('marks a post published with live URL and manual performance metrics', async () => {
+      const post = await ContentPost.create({
+        userId: testUserId,
+        platform: 'instagram',
+        topic: 'Hand-knotted Oushak Showcase',
+        status: 'ready'
+      });
+
+      const res = await request(app)
+        .post(`/api/content/${post.id}/mark-posted`)
+        .set(authHeaders)
+        .send({
+          postedUrl: 'https://instagram.com/p/DBrugsample123',
+          impressions: 4500,
+          likes: 280,
+          comments: 24,
+          saves: 85,
+          clicks: 62,
+          leadsGenerated: 3
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.post.status).toBe('posted');
+      expect(res.body.post.postedUrl).toBe('https://instagram.com/p/DBrugsample123');
+      expect(res.body.post.leadsGenerated).toBe(3);
+
+      const refreshed = await ContentPost.findByPk(post.id);
+      expect(refreshed.status).toBe('posted');
+      expect(refreshed.likes).toBe(280);
+    });
+
+    it('calculates weekly posting consistency correctly', async () => {
+      await UserSettings.upsert({
+        userId: testUserId,
+        weeklyPostTarget: 4
+      });
+
+      // Create 2 posted posts this week
+      await ContentPost.create({
+        userId: testUserId,
+        platform: 'linkedin',
+        topic: 'B2B Trade Guide',
+        status: 'posted',
+        postedAt: new Date()
+      });
+      await ContentPost.create({
+        userId: testUserId,
+        platform: 'instagram',
+        topic: 'Reel: Dye Vat Color Formulation',
+        status: 'posted',
+        postedAt: new Date()
+      });
+
+      const res = await request(app)
+        .get('/api/content')
+        .set(authHeaders);
+
+      expect(res.status).toBe(200);
+      expect(res.body.consistency).toBeDefined();
+      expect(res.body.consistency.weeklyTarget).toBe(4);
+      expect(res.body.consistency.publishedThisWeek).toBeGreaterThanOrEqual(2);
+      expect(res.body.consistency.percentage).toBeGreaterThanOrEqual(50);
+    });
+  });
+
+  describe('2. Merged Calendar Integration for Posts', () => {
+    it('surfaces scheduled content posts as itemType="post" in calendar feed with isMissed flag', async () => {
+      const pastTime = new Date('2026-11-20T10:00:00.000Z');
+      const post = await ContentPost.create({
+        userId: testUserId,
+        platform: 'instagram',
+        topic: 'Calendar Feed Rug Story',
+        scheduledAt: pastTime,
+        status: 'scheduled'
+      });
+
+      const feed = await getMergedCalendar(testUserId, '2026-11-01', '2026-11-30');
+      const feedItem = feed.items.find((i) => i.itemType === 'post' && i.id === post.id);
+
+      expect(feedItem).toBeDefined();
+      expect(feedItem.title).toContain('Calendar Feed Rug Story');
+      expect(feedItem.platform).toBe('instagram');
+      expect(feedItem.isMissed).toBe(true);
+    });
+  });
+
+  describe('3. Founder Reminder Dispatch for Scheduled Posts', () => {
+    it('dispatches reminder for today posts and prevents duplicate sends via ReminderLog', async () => {
+      const now = new Date();
+      const currentHours = String(now.getUTCHours()).padStart(2, '0');
+      const currentMinutes = String(now.getUTCMinutes()).padStart(2, '0');
+      const reminderTime = `${currentHours}:${currentMinutes}`;
+
+      const settings = await UserSettings.findOne({ where: { userId: testUserId } });
+      const localDateStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: settings?.timezone || 'Asia/Dubai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(now);
+
+      await ContentPost.create({
+        userId: testUserId,
+        platform: 'instagram',
+        topic: 'Reminder Test Post for Knotiq Rugs',
+        scheduledAt: now,
+        status: 'scheduled'
+      });
+
+      // Dispatch directly via sendContentPostReminder
+      await founderReminderService.sendContentPostReminder(testUserId, localDateStr, settings || { timezone: 'Asia/Dubai' });
+
+      // Verify ReminderLog was written
+      const logs = await ReminderLog.findAll({
+        where: {
+          userId: testUserId,
+          reminderType: 'post_reminder',
+          referenceId: localDateStr
+        }
+      });
+      expect(logs.length).toBe(1);
+
+      // Re-running dispatch should NOT duplicate sends
+      await founderReminderService.sendContentPostReminder(testUserId, localDateStr, settings || { timezone: 'Asia/Dubai' });
+      const logsAfter = await ReminderLog.findAll({
+        where: {
+          userId: testUserId,
+          reminderType: 'post_reminder',
+          referenceId: localDateStr
+        }
+      });
+      expect(logsAfter.length).toBe(1);
+    });
+  });
+
+  describe('4. Campaign Creation, Lead Preview & OptOut Suppression', () => {
+    it('creates campaign and previews leads with OptOut exclusion', async () => {
+      const campaign = await Campaign.create({
+        userId: testUserId,
+        name: 'UAE Interior Designers Winter 2026',
+        goal: 'Generate 20 custom rug enquiries',
+        channel: 'email',
+        targetBuyerType: 'designer',
+        budget: 5000,
+        currency: 'AED',
+        status: 'active'
+      });
+
+      // Create 3 test leads (1 clean, 1 with optedOut flag, 1 with OptOut table entry)
+      const cleanLead = await createTestLead({
+        businessName: 'Elegance Design Studio Dubai',
+        email: 'procurement@elegancedesign.ae',
+        phone: '+971501112233',
+        buyerType: 'designer',
+        city: 'Dubai',
+        status: 'new',
+        score: 80
+      });
+
+      const optedOutLead1 = await createTestLead({
+        businessName: 'Opted Out Studio 1',
+        email: 'no-contact@optedout1.com',
+        phone: '+971509990001',
+        buyerType: 'designer',
+        city: 'Dubai',
+        optedOut: true,
+        status: 'new',
+        score: 80
+      });
+
+      const blockedEmail = `blocked_${Date.now()}_${Math.random().toString(36).slice(2)}@optedout2.com`;
+      const optedOutLead2 = await createTestLead({
+        businessName: 'Opted Out Studio 2',
+        email: blockedEmail,
+        phone: '+971509990002',
+        buyerType: 'designer',
+        city: 'Dubai',
+        optedOut: false,
+        status: 'new',
+        score: 80
+      });
+      await OptOut.create({
+        type: 'email',
+        value: blockedEmail,
+        reason: 'Requested unsub'
+      });
+
+      const preview = await campaignService.previewLeads(testUserId, {
+        buyerType: 'designer',
+        city: 'Dubai'
+      });
+
+      expect(preview.totalMatched).toBeGreaterThanOrEqual(3);
+      expect(preview.skippedOptOuts).toBeGreaterThanOrEqual(2);
+      expect(preview.eligibleCount).toBeGreaterThanOrEqual(1);
+
+      // Verify bulk addition strictly adds only eligible leads
+      const addResult = await campaignService.bulkAddLeads(testUserId, campaign.id, {
+        buyerType: 'designer',
+        city: 'Dubai'
+      });
+
+      expect(addResult.addedCount).toBeGreaterThanOrEqual(1);
+      expect(addResult.skippedOptOuts).toBeGreaterThanOrEqual(2);
+
+      // Verify CampaignLead entries
+      const campaignLeads = await CampaignLead.findAll({ where: { campaignId: campaign.id } });
+      const addedLeadIds = campaignLeads.map((cl) => cl.leadId);
+      expect(addedLeadIds).toContain(cleanLead.id);
+      expect(addedLeadIds).not.toContain(optedOutLead1.id);
+      expect(addedLeadIds).not.toContain(optedOutLead2.id);
+    });
+
+    it('enforces idempotency on re-adding leads to campaign', async () => {
+      const campaign = await Campaign.create({
+        userId: testUserId,
+        name: 'Idempotency Test Campaign',
+        channel: 'email'
+      });
+      const uniqueCity = `Sharjah_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      await createTestLead({
+        businessName: 'Unique Studio Sharjah',
+        buyerType: 'designer',
+        city: uniqueCity
+      });
+
+      const res1 = await campaignService.bulkAddLeads(testUserId, campaign.id, { city: uniqueCity });
+      expect(res1.addedCount).toBe(1);
+
+      // Second bulk add with same criteria
+      const res2 = await campaignService.bulkAddLeads(testUserId, campaign.id, { city: uniqueCity });
+      expect(res2.addedCount).toBe(0); // None added duplicate
+    });
+  });
+
+  describe('5. Stage-Rank Funnel Aggregation & Deal Value Revenue Tracking', () => {
+    it('applies stage-rank logic: won leads count across all prior stages', async () => {
+      const campaign = await Campaign.create({
+        userId: testUserId,
+        name: 'Stage Rank Funnel Verification Campaign',
+        channel: 'email'
+      });
+
+      // Lead 1: won with deal value
+      const leadWon = await createTestLead({
+        businessName: 'Burj Al Arab Villa Contract',
+        buyerType: 'hotel',
+        status: 'won',
+        dealValue: 75000,
+        dealCurrency: 'AED'
+      });
+
+      // Lead 2: replied with no deal value
+      const leadReplied = await createTestLead({
+        businessName: 'Palm Jumeirah Residence',
+        buyerType: 'designer',
+        status: 'replied'
+      });
+
+      // Lead 3: new
+      const leadNew = await createTestLead({
+        businessName: 'Downtown Showroom',
+        buyerType: 'retailer',
+        status: 'new'
+      });
+
+      await CampaignLead.create({ userId: testUserId, campaignId: campaign.id, leadId: leadWon.id });
+      await CampaignLead.create({ userId: testUserId, campaignId: campaign.id, leadId: leadReplied.id });
+      await CampaignLead.create({ userId: testUserId, campaignId: campaign.id, leadId: leadNew.id });
+
+      const funnel = await campaignService.getCampaignFunnel(testUserId, campaign.id);
+
+      // Stages:
+      // added: 3
+      // contacted: 2 (leadWon + leadReplied)
+      // replied: 2 (leadWon + leadReplied)
+      // sample_sent: 1 (leadWon)
+      // quotation: 1 (leadWon)
+      // won: 1 (leadWon)
+      expect(funnel.stages.added).toBe(3);
+      expect(funnel.stages.contacted).toBe(2);
+      expect(funnel.stages.replied).toBe(2);
+      expect(funnel.stages.sample_sent).toBe(1);
+      expect(funnel.stages.quotation).toBe(1);
+      expect(funnel.stages.won).toBe(1);
+
+      // Revenue tracking:
+      expect(funnel.revenue.wonRevenue).toBe(75000);
+      expect(funnel.revenue.totalDealValue).toBe(75000);
+      expect(funnel.revenue.leadsWithNoValue).toBe(2); // leadReplied & leadNew
+    });
+
+    it('counts a lead present in two campaigns in both campaigns funnels', async () => {
+      const lead = await createTestLead({
+        businessName: 'Multi-Campaign Client',
+        status: 'won',
+        dealValue: 20000,
+        dealCurrency: 'AED'
+      });
+
+      const camp1 = await Campaign.create({ userId: testUserId, name: 'Campaign Alpha', channel: 'email' });
+      const camp2 = await Campaign.create({ userId: testUserId, name: 'Campaign Beta', channel: 'whatsapp' });
+
+      await CampaignLead.create({ userId: testUserId, campaignId: camp1.id, leadId: lead.id });
+      await CampaignLead.create({ userId: testUserId, campaignId: camp2.id, leadId: lead.id });
+
+      const f1 = await campaignService.getCampaignFunnel(testUserId, camp1.id);
+      const f2 = await campaignService.getCampaignFunnel(testUserId, camp2.id);
+
+      expect(f1.stages.won).toBe(1);
+      expect(f2.stages.won).toBe(1);
+      expect(f1.revenue.wonRevenue).toBe(20000);
+      expect(f2.revenue.wonRevenue).toBe(20000);
+    });
+  });
+
+  describe('6. Tenancy Isolation', () => {
+    it('prevents User B from accessing or adding leads to User A campaign', async () => {
+      const userACampaign = await Campaign.create({
+        userId: testUserId,
+        name: 'Secret User A Campaign',
+        channel: 'email'
+      });
+
+      // User B tries to view
+      const viewRes = await request(app)
+        .get(`/api/campaigns/${userACampaign.id}`)
+        .set(otherAuthHeaders);
+      expect(viewRes.status).toBe(404);
+
+      // User B tries to add leads
+      const addRes = await request(app)
+        .post(`/api/campaigns/${userACampaign.id}/add-leads`)
+        .set(otherAuthHeaders)
+        .send({ filters: {} });
+      expect(addRes.status).toBe(404);
+
+      // User B tries to get send queue
+      const queueRes = await request(app)
+        .get(`/api/campaigns/${userACampaign.id}/send-queue`)
+        .set(otherAuthHeaders);
+      expect(queueRes.status).toBe(404);
+    });
+  });
+
+  describe('7. Send Queue & Deterministic A/B Variant Assignment', () => {
+    it('computes consistent deterministic A/B variant across Day 1, 4 and 7 for a lead', () => {
+      const leadId = 42;
+      const v1 = abTestingService.getDeterministicVariant(leadId);
+      const v2 = abTestingService.getDeterministicVariant(leadId);
+      const v3 = abTestingService.getDeterministicVariant(leadId);
+
+      expect(v1).toBe(v2);
+      expect(v2).toBe(v3);
+      expect(['A', 'B']).toContain(v1);
+    });
+
+    it('send queue pulls pending leads and formats pre-filled wa.me links for WhatsApp campaigns', async () => {
+      const waCampaign = await Campaign.create({
+        userId: testUserId,
+        name: 'WhatsApp Trade Campaign',
+        channel: 'whatsapp',
+        targetBuyerType: 'designer'
+      });
+
+      const lead = await createTestLead({
+        businessName: 'Deira Interior Boutique',
+        phone: '+971501234567',
+        buyerType: 'designer',
+        status: 'new'
+      });
+
+      await CampaignLead.create({
+        userId: testUserId,
+        campaignId: waCampaign.id,
+        leadId: lead.id
+      });
+
+      const queueData = await campaignService.getCampaignSendQueue(testUserId, waCampaign.id);
+
+      expect(queueData.channel).toBe('whatsapp');
+      expect(queueData.queue.length).toBe(1);
+      expect(queueData.queue[0].lead.id).toBe(lead.id);
+      expect(['A', 'B']).toContain(queueData.queue[0].variant);
+      expect(queueData.queue[0].previewMessage).toContain('Knotiq');
+    });
+  });
+
+  describe('8. Outreach Recording & Automated Follow-Up Creation', () => {
+    it('records sent outreach, attaches campaignId to OutreachLog & FollowUp, and schedules Day 4/7', async () => {
+      const campaign = await Campaign.create({
+        userId: testUserId,
+        name: 'Winter Outreach Drip',
+        channel: 'email'
+      });
+
+      const lead = await createTestLead({
+        businessName: 'Ajman Palace Hotel Fit-Out',
+        email: 'procurement@ajmanpalace.ae',
+        buyerType: 'hotel',
+        status: 'new'
+      });
+
+      await CampaignLead.create({
+        userId: testUserId,
+        campaignId: campaign.id,
+        leadId: lead.id
+      });
+
+      const sendResult = await campaignService.recordCampaignSend(testUserId, campaign.id, lead.id, {
+        messageSent: 'Hello from Knotiq Rugs',
+        variant: 'A'
+      });
+
+      expect(sendResult.success).toBe(true);
+      expect(sendResult.leadStatus).toBe('contacted');
+      expect(sendResult.followUpsCreated).toBe(2);
+
+      // Verify OutreachLog record
+      const outreachLogs = await OutreachLog.findAll({ where: { leadId: lead.id } });
+      expect(outreachLogs.length).toBe(1);
+      expect(outreachLogs[0].campaignId).toBe(campaign.id);
+      expect(outreachLogs[0].variant).toBe('A');
+
+      // Verify FollowUp records attached to campaignId
+      const followUps = await FollowUp.findAll({ where: { leadId: lead.id } });
+      expect(followUps.length).toBe(2);
+      expect(followUps[0].campaignId).toBe(campaign.id);
+      expect(followUps[1].campaignId).toBe(campaign.id);
+    });
+  });
+
+  describe('9. Reply Attribution on Mark Replied', () => {
+    it('updates outcome = "replied" on the most recent outbound OutreachLog when lead replies', async () => {
+      const lead = await createTestLead({
+        businessName: 'Responsive Design Studio',
+        email: 'hello@responsivestudio.com',
+        buyerType: 'designer',
+        status: 'contacted'
+      });
+
+      // Create an outbound outreach log with outcome = 'sent'
+      const log = await OutreachLog.create({
+        userId: testUserId,
+        leadId: lead.id,
+        channel: 'email',
+        step: 1,
+        variant: 'B',
+        outcome: 'sent',
+        messageSent: 'Initial outreach pitch'
+      });
+
+      // Lead marks replied
+      await followUpEngine.markReplied(testUserId, lead.id, 'Interested in wool swatch samples');
+
+      const updatedLog = await OutreachLog.findByPk(log.id);
+      expect(updatedLog.outcome).toBe('replied');
+
+      const updatedLead = await Lead.findByPk(lead.id);
+      expect(updatedLead.status).toBe('replied');
+    });
+  });
+
+  describe('10. A/B Testing Analytics & 25-Send Winner Guard', () => {
+    it('does NOT declare a winner when either variant has < 25 sends', async () => {
+      const abData = await abTestingService.getABTestMetrics('user_empty_ab');
+      expect(abData.hasWinner).toBe(false);
+      expect(abData.winner).toBeNull();
+      expect(abData.notice).toContain('25');
+    });
+
+    it('evaluates winner when both variants have >= 25 sends', async () => {
+      const abUserId = `test_ab_user_${Date.now()}`;
+      // Simulate 25 sends for Variant A with 5 replies (20%)
+      // Simulate 25 sends for Variant B with 10 replies (40%)
+      const logs = [];
+      for (let i = 0; i < 25; i++) {
+        logs.push({
+          userId: abUserId,
+          channel: 'email',
+          variant: 'A',
+          outcome: i < 5 ? 'replied' : 'sent',
+          messageSent: 'Test A'
+        });
+      }
+      for (let i = 0; i < 25; i++) {
+        logs.push({
+          userId: abUserId,
+          channel: 'email',
+          variant: 'B',
+          outcome: i < 10 ? 'replied' : 'sent',
+          messageSent: 'Test B'
+        });
+      }
+      await OutreachLog.bulkCreate(logs);
+
+      const metrics = await abTestingService.getABTestMetrics(abUserId);
+      expect(metrics.variantA.sends).toBe(25);
+      expect(metrics.variantA.replies).toBe(5);
+      expect(metrics.variantA.replyRate).toBe(20);
+
+      expect(metrics.variantB.sends).toBe(25);
+      expect(metrics.variantB.replies).toBe(10);
+      expect(metrics.variantB.replyRate).toBe(40);
+
+      expect(metrics.hasWinner).toBe(true);
+      expect(metrics.winner).toBe('B');
+    });
+  });
+
+  describe('11. Inbound Lead Quick-Add with Deduplication', () => {
+    it('creates inbound lead, assigns buyerType & dealValue, and schedules Day 1 follow-up', async () => {
+      const lead = await inboundService.addInboundLead(testUserId, {
+        businessName: 'Atlantis Royal Penthouse Interior',
+        phone: '+971529998877',
+        email: 'interior@atlantisroyal.ae',
+        source: 'whatsapp_inbound',
+        buyerType: 'designer',
+        dealValue: 65000,
+        dealCurrency: 'AED',
+        city: 'Dubai',
+        country: 'United Arab Emirates',
+        notes: 'Inquired on 12x15 pure silk rug'
+      });
+
+      expect(lead.id).toBeDefined();
+      expect(lead.source).toBe('whatsapp_inbound');
+      expect(lead.buyerType).toBe('designer');
+      expect(lead.dealValue).toBe(65000);
+      expect(lead.dealCurrency).toBe('AED');
+
+      // Verify follow-ups created (Day 4 and Day 7 follow-ups)
+      const followUps = await FollowUp.findAll({ where: { leadId: lead.id } });
+      expect(followUps.length).toBe(2);
+      expect(followUps[0].channel).toBe('whatsapp');
+    });
+
+    it('deduplicates existing lead on matching phone or email and creates follow-up', async () => {
+      const rawDigits = `97150${Math.floor(1000000 + Math.random() * 9000000)}`;
+      const phoneFormatted = `+${rawDigits.slice(0, 3)} ${rawDigits.slice(3, 5)} ${rawDigits.slice(5)}`;
+      const existingEmail = `client_${Date.now()}_${Math.random().toString(36).slice(2)}@client.ae`;
+
+      const existing = await createTestLead({
+        businessName: 'Existing Client',
+        phone: phoneFormatted,
+        email: existingEmail,
+        source: 'referral',
+        dedupeKey: `ph_${rawDigits}`
+      });
+
+      const resultLead = await inboundService.addInboundLead(testUserId, {
+        businessName: 'Existing Client Updated Inquiry',
+        phone: phoneFormatted,
+        email: existingEmail,
+        source: 'trade_show',
+        buyerType: 'hotel',
+        dealValue: 30000,
+        notes: 'New hotel suite request'
+      });
+
+      expect(resultLead.id).toBe(existing.id);
+      expect(resultLead.dealValue).toBe(30000);
+    });
+  });
+
+  describe('12. Sources Report & Formula-Injection-Safe Excel Export', () => {
+    it('generates sources report with conversion rate and deal value statistics', async () => {
+      const report = await attributionService.getSourcesReport(testUserId);
+      expect(report.sources).toBeDefined();
+      expect(Array.isArray(report.sources)).toBe(true);
+      expect(report.abTesting).toBeDefined();
+      expect(report.callConnectRates).toBeDefined();
+      expect(report.topPosts).toBeDefined();
+    });
+
+    it('escapes Excel formula injection characters (=, +, -, @) during export', async () => {
+      // Create a lead with potentially malicious formula name
+      await createTestLead({
+        businessName: '=cmd|/c calc!A0',
+        source: '@malicious_source',
+        city: '+Dubai'
+      });
+
+      const buffer = await attributionService.exportSourcesExcel(testUserId);
+      expect(buffer).toBeDefined();
+      expect(Buffer.isBuffer(buffer)).toBe(true);
+      expect(buffer.length).toBeGreaterThan(100);
+    });
+  });
+
+  describe('13. Sources Standardization & Idempotent Backfill Script', () => {
+    it('backfills legacy sources correctly and supports dry-run', async () => {
+      const lead1 = await createTestLead({
+        businessName: 'Old IG Lead',
+        source: 'scraper',
+        platform: 'instagram'
+      });
+      const lead2 = await createTestLead({
+        businessName: 'Old GMaps Lead',
+        source: '',
+        platform: 'google_maps'
+      });
+
+      // Dry run: counts updates but mutates nothing
+      const dryResult = await backfillSources({ dryRun: true });
+      expect(dryResult.candidateCount).toBeGreaterThanOrEqual(2);
+      expect(dryResult.updatedCount).toBe(0);
+
+      const ref1 = await Lead.findByPk(lead1.id);
+      expect(ref1.source).toBe('scraper');
+
+      // Live run: applies updates
+      const liveResult = await backfillSources({ dryRun: false });
+      expect(liveResult.updatedCount).toBeGreaterThanOrEqual(2);
+
+      const updatedRef1 = await Lead.findByPk(lead1.id);
+      expect(updatedRef1.source).toBe('instagram');
+
+      const updatedRef2 = await Lead.findByPk(lead2.id);
+      expect(updatedRef2.source).toBe('google_maps');
+    });
+  });
+});

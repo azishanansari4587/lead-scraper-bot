@@ -156,3 +156,36 @@ This document records all significant technical and design choices made during t
   - **Evening Review:** Auto-summarizes day's results (calls, emails, WhatsApps, tasks done), records win and lesson of the day, previews tomorrow's auto-generated pipeline draft, and tracks consecutive consistency streaks.
   - **Two Timezone-Aware Streaks:** Computes both **Evening Review streak** and **Daily Targets hit streak** in the user's configured timezone (default `Asia/Dubai`, UTC+4), with day-boundary precision (e.g., distinguishing 11:50 PM Dubai from 12:10 AM next-day Dubai).
 - **Founder Reminder Service (`founderReminderService.js`, `ReminderLog.js`):** Automated background reminder ticker that alerts the founder for morning plan briefs, evening review nudges, and upcoming event warnings via Telegram/Email. Timing is configurable per user (`morningBriefTime`, `eveningNudgeTime`, `eventReminderMinutes`, `remindersEnabled`), respects `DRY_RUN` simulation mode, and enforces zero duplicate dispatches across server restarts via unique `ReminderLog` keys.
+
+## 18. Marketing Hub: Content Calendar, Campaigns & Attribution (Phase C)
+- **Manual Content Calendar & Overdue Post Flagging (`ContentPost.js`, `src/api/routes/content.js`):**
+  - Manages social media & journal planning across 9 platforms (`instagram`, `linkedin`, `facebook`, `pinterest`, `youtube`, `blog`, `newsletter`, `whatsapp_status`, `other`) across statuses (`idea`, `draft`, `ready`, `scheduled`, `posted`, `skipped`).
+  - Posting is strictly manual (system plans and reminds; founder executes).
+  - Overdue posts whose `scheduledAt` date has passed and status is neither `posted` nor `skipped` are dynamically calculated as `isMissed: true` with prominent overdue badges.
+  - Mark Published dialog records live URL (`postedUrl`), publication timestamp, and manual performance metrics (`impressions`, `likes`, `comments`, `saves`, `clicks`, `leadsGenerated`).
+  - Weekly posting consistency gauge tracks published posts against user's `weeklyPostTarget`.
+- **Founder Content Posting Reminders (`founderReminderService.js`):**
+  - Background ticker scans for content posts scheduled for today at the user's configured `contentReminderTime` (default 09:30).
+  - Reminds founder via Telegram/Email with post topic and platform, recording dispatch in `ReminderLog` to prevent duplicate alerts.
+  - Merged calendar feed (`calendarService.js`) displays content posts as `itemType: 'post'` alongside tasks, events, and calls.
+- **Trade Campaigns Engine & Funnel Conversion (`Campaign.js`, `CampaignLead.js`, `campaignService.js`):**
+  - Multi-channel trade campaigns (`email`, `whatsapp`, `instagram`, `linkedin`, `trade_show`, `mixed`, `other`) with budgets, currencies, target buyer types, and dates.
+  - **Funnel Stage-Rank Rule:** Funnel progression evaluates status ranks (`new`: 1 -> `contacted`: 2 -> `replied`: 3 -> `sample_sent`: 4 -> `quotation`/`negotiation`: 5 -> `won`/`repeat_client`: 6). A lead at stage $S$ counts as having reached all prior stages <= $S$. A lead enrolled in multiple campaigns counts across each campaign's funnel.
+  - **Deal Value Revenue Tracking:** Nullable `dealValue` and `dealCurrency` on `Lead`. Funnel analytics track `wonRevenue`, `totalDealValue`, and explicitly report `leadsWithNoValue` instead of treating unrecorded values as zero.
+  - **Campaign Archiving:** Deleting a campaign with associated leads or outreach activity automatically archives the campaign (`status = 'archived'`) rather than destructively deleting records.
+- **Multi-Stage OptOut Suppression:**
+  - Enforced across 4 distinct touchpoints:
+    1. Filter preview (`previewLeads`): live count of matching leads and skipped opt-outs.
+    2. Bulk addition (`bulkAddLeads`): excludes opted-out emails, domains, and phone numbers.
+    3. Send queue retrieval (`getCampaignSendQueue`): re-verifies OptOut status before queuing.
+    4. Outreach recording (`recordCampaignSend`): re-checks OptOut immediately before dispatch.
+- **Deterministic 50/50 A/B Testing & Reply Attribution (`abTestingService.js`):**
+  - Deterministic variant assignment based on a 32-bit stable hash of `leadId % 2` (`A` vs `B`). Guarantees that Day 1, Day 4, and Day 7 templates for a given lead always use the same variant.
+  - **Winner Declaration Guard:** A winner is never displayed until both Variant A and Variant B have reached >= 25 sends. Below 25 sends, raw counts and threshold progress are displayed.
+  - **Reply Attribution:** Calling `markReplied` updates the outcome of the most recent outbound `OutreachLog` for that lead and channel to `'replied'`, enabling accurate conversion rate tracking per template and variant.
+- **Sources Attribution & Formula Injection Defense (`attributionService.js`):**
+  - Full sources conversion table with won revenue, buyer type call connect rates, and top performing posts.
+  - Multi-sheet Excel workbook export (`ExcelJS`) enforcing formula injection defense by prepending `'` to any string beginning with `=`, `+`, `-`, `@`, `\t`, or `\r`.
+- **Inbound Lead Quick-Add & Source Standardization (`inboundService.js`, `backfillSources.js`):**
+  - Quick-add modal for inbound WhatsApp inquiries or walk-ins; auto-creates Day 1 follow-up and deduplicates by phone or email.
+  - Idempotent backfill script with `--dry-run` flag to normalize legacy source strings (e.g. `ig` -> `instagram`, `gmaps` -> `google_maps`).

@@ -248,6 +248,23 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
 | **OptOut** | `POST` | `/api/optout` | Add email, domain, or phone to suppression blacklist |
 | **Settings** | `GET` | `/api/settings/user` | Founder preferences, timezone, reminder times, and targets |
 | | `PATCH`| `/api/settings/user` | Update daily targets and reminder preferences |
+| **Content** | `GET` | `/api/content` | Content posts with platform/status filters, missed calculation & consistency |
+| | `POST` | `/api/content` | Plan content post or raw idea (Alt+P shortcut) |
+| | `PATCH` | `/api/content/:id` | Update topic, platform, schedule time, or status |
+| | `POST` | `/api/content/:id/mark-posted` | Record live post URL and manual performance metrics (impressions, leads) |
+| | `DELETE`| `/api/content/:id` | Remove content post |
+| **Campaigns** | `GET` | `/api/campaigns` | List trade campaigns with quick lead counts |
+| | `POST` | `/api/campaigns` | Create trade campaign with budget, channel, and target buyer type |
+| | `GET` | `/api/campaigns/:id` | Campaign details with stage-rank funnel conversion & lead roster |
+| | `POST` | `/api/campaigns/:id/preview-leads` | Live preview of matching leads and skipped opt-outs |
+| | `POST` | `/api/campaigns/:id/add-leads` | Bulk ingest filtered leads into campaign with OptOut exclusion |
+| | `GET` | `/api/campaigns/:id/send-queue` | Queued leads with prefilled wa.me links and deterministic A/B templates |
+| | `POST` | `/api/campaigns/:id/record-send` | Record campaign outreach send with Day 4/7 follow-up creation |
+| | `DELETE`| `/api/campaigns/:id` | Archive campaign when activity exists, or delete if empty |
+| **Marketing** | `GET` | `/api/marketing/overview` | Cockpit with posts due this week, consistency gauge, and active funnels |
+| | `GET` | `/api/marketing/sources-report` | Sources conversion table, A/B reply rates (>=25 send guard), call rates |
+| | `GET` | `/api/marketing/export-sources` | Download Excel sources attribution report with formula injection defense |
+| | `POST` | `/api/marketing/inbound-lead` | Quick-add inbound lead from WhatsApp/walk-in with dedupe & Day 1 follow-up |
 
 ---
 

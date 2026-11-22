@@ -35,6 +35,10 @@ const FollowUp = sequelize.define('FollowUp', {
   notes: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  campaignId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: 'FollowUps',

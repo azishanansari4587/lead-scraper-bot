@@ -11,6 +11,7 @@ const DailyReview = require('../../models/DailyReview');
 const Task = require('../../models/Task');
 const FollowUp = require('../../models/FollowUp');
 const CalendarEvent = require('../../models/CalendarEvent');
+const ContentPost = require('../../models/ContentPost');
 const ReminderLog = require('../../models/ReminderLog');
 const Lead = require('../../models/Lead');
 const notifier = require('../notifications/notifier');
@@ -76,6 +77,12 @@ class FounderReminderService {
     // 3. Check Event Reminders (N minutes before startAt)
     const leadMinutes = settings.eventReminderMinutes || 15;
     await this.checkUpcomingEvents(userId, leadMinutes, settings);
+
+    // 4. Check Content Posting Reminder (due today at contentReminderTime)
+    const postTime = settings.contentReminderTime || '10:00';
+    if (localTimeStr === postTime) {
+      await this.sendContentPostReminder(userId, localDateStr, settings);
+    }
   }
 
   /**
@@ -175,6 +182,49 @@ class FounderReminderService {
       `👉 Open: Knotiq Today Hub -> Evening Review`;
 
     await this.dispatchNotification(userId, 'evening_nudge', dateStr, msg, `Evening Review Nudge (${dateStr})`);
+  }
+
+  /**
+   * Sends reminder for content posts scheduled for today (Phase C)
+   */
+  async sendContentPostReminder(userId, dateStr, settings) {
+    const existingLog = await ReminderLog.findOne({
+      where: { userId, reminderType: 'post_reminder', referenceId: dateStr }
+    });
+
+    if (existingLog) {
+      return;
+    }
+
+    const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
+    const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
+
+    const scheduledPosts = await ContentPost.findAll({
+      where: {
+        userId,
+        scheduledAt: { [Op.between]: [startOfDay, endOfDay] },
+        status: { [Op.in]: ['scheduled', 'ready', 'draft', 'idea'] }
+      }
+    });
+
+    if (scheduledPosts.length === 0) {
+      return;
+    }
+
+    let msg = `📱 *KNOTIQ RUGS — CONTENT POSTING REMINDER (${dateStr})*\n\n` +
+      `You have *${scheduledPosts.length}* marketing post(s) scheduled for today:\n\n`;
+
+    scheduledPosts.forEach((p, idx) => {
+      const timeStr = p.scheduledAt
+        ? new Date(p.scheduledAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: settings.timezone || 'Asia/Dubai' })
+        : 'Anytime';
+      msg += `${idx + 1}. *[${p.platform.toUpperCase()}]* ${p.topic} (${timeStr})\n` +
+        (p.assetLink ? `   🔗 Asset: ${p.assetLink}\n` : '');
+    });
+
+    msg += `\n👉 Open Marketing Hub -> Content Calendar to mark posted and record metrics!`;
+
+    await this.dispatchNotification(userId, 'post_reminder', dateStr, msg, `Content Posting Reminder (${dateStr})`);
   }
 
   /**

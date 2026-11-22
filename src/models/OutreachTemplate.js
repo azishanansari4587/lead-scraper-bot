@@ -19,6 +19,18 @@ const OutreachTemplate = sequelize.define('OutreachTemplate', {
     type: DataTypes.STRING,
     allowNull: true // null for all
   },
+  buyerType: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  step: {
+    type: DataTypes.STRING(50),
+    defaultValue: 'day1'
+  },
+  variant: {
+    type: DataTypes.STRING(10),
+    defaultValue: 'A'
+  },
   channel: {
     type: DataTypes.ENUM('email', 'whatsapp'),
     defaultValue: 'email'

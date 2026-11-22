@@ -7,6 +7,7 @@ const { Op } = require('sequelize');
 const CalendarEvent = require('../../models/CalendarEvent');
 const Task = require('../../models/Task');
 const FollowUp = require('../../models/FollowUp');
+const ContentPost = require('../../models/ContentPost');
 const Lead = require('../../models/Lead');
 const logger = require('../../config/logger');
 
@@ -29,7 +30,7 @@ class CalendarService {
     const startFrom = from ? new Date(from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const endTo = to ? new Date(to) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    const [events, tasks, followUps] = await Promise.all([
+    const [events, tasks, followUps, posts] = await Promise.all([
       CalendarEvent.findAll({
         where: {
           userId,
@@ -58,6 +59,13 @@ class CalendarService {
         },
         include: [{ model: Lead, as: 'lead', attributes: ['id', 'businessName', 'phone', 'whatsapp', 'email', 'city'] }],
         order: [['dueAt', 'ASC']]
+      }),
+      ContentPost.findAll({
+        where: {
+          userId,
+          scheduledAt: { [Op.between]: [startFrom, endTo] }
+        },
+        order: [['scheduledAt', 'ASC']]
       })
     ]);
 
@@ -155,15 +163,40 @@ class CalendarService {
       };
     });
 
+    // 5. Format ContentPosts (Phase C Marketing Hub)
+    const nowMs = Date.now();
+    const formattedPosts = posts.map((p) => {
+      const pStart = new Date(p.scheduledAt);
+      const endAt = new Date(pStart.getTime() + 30 * 60 * 1000);
+      const isMissed = p.status !== 'posted' && pStart.getTime() < nowMs;
+      return {
+        id: p.id,
+        rawId: p.id,
+        feedId: `post_${p.id}`,
+        itemType: 'post',
+        title: `Post: ${p.topic} (${p.platform})`,
+        startAt: p.scheduledAt,
+        endAt: endAt.toISOString(),
+        allDay: false,
+        platform: p.platform,
+        status: p.status,
+        isMissed,
+        assetLink: p.assetLink,
+        hasConflict: false,
+        conflicts: [],
+        color: isMissed ? '#ef4444' : '#ec4899' // Red if missed, pink for social marketing
+      };
+    });
+
     // Merge and sort chronologically
-    const allItems = [...formattedEvents, ...formattedTasks, ...formattedFollowUps].sort(
+    const allItems = [...formattedEvents, ...formattedTasks, ...formattedFollowUps, ...formattedPosts].sort(
       (a, b) => new Date(a.startAt) - new Date(b.startAt)
     );
 
     return {
       success: true,
-      from: from.toISOString(),
-      to: to.toISOString(),
+      from: startFrom.toISOString(),
+      to: endTo.toISOString(),
       total: allItems.length,
       conflictCount: conflictMap.size,
       items: allItems

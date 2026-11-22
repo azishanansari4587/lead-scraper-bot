@@ -180,6 +180,14 @@ const Lead = sequelize.define('Lead', {
     type: DataTypes.STRING(255),
     allowNull: true
   },
+  dealValue: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: true
+  },
+  dealCurrency: {
+    type: DataTypes.STRING(10),
+    defaultValue: 'AED'
+  },
   optedOut: {
     type: DataTypes.BOOLEAN,
     defaultValue: false

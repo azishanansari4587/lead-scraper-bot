@@ -215,5 +215,46 @@ export const api = {
   getDailyReviewSummary: (date) => fetchJson(`/planner/daily-review/summary${date ? `?date=${date}` : ''}`),
   saveDailyReview: (payload) => fetchJson('/planner/daily-review', { method: 'POST', body: JSON.stringify(payload) }),
   getTomorrowDraft: (date) => fetchJson(`/planner/tomorrow-draft${date ? `?date=${date}` : ''}`),
-  getStreaks: () => fetchJson('/planner/streaks')
+  getStreaks: () => fetchJson('/planner/streaks'),
+
+  // Phase C: Marketing Hub - Content Calendar
+  getContentPosts: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    return fetchJson(`/content?${qs.toString()}`);
+  },
+  createContentPost: (payload) => fetchJson('/content', { method: 'POST', body: JSON.stringify(payload) }),
+  updateContentPost: (id, updates) => fetchJson(`/content/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  markContentPostPublished: (id, payload) => fetchJson(`/content/${id}/mark-posted`, { method: 'POST', body: JSON.stringify(payload) }),
+  deleteContentPost: (id) => fetchJson(`/content/${id}`, { method: 'DELETE' }),
+
+  // Phase C: Marketing Hub - Campaigns
+  getCampaigns: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    return fetchJson(`/campaigns?${qs.toString()}`);
+  },
+  createCampaign: (payload) => fetchJson('/campaigns', { method: 'POST', body: JSON.stringify(payload) }),
+  getCampaign: (id) => fetchJson(`/campaigns/${id}`),
+  updateCampaign: (id, updates) => fetchJson(`/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  previewCampaignLeads: (id, filters = {}) => fetchJson(`/campaigns/${id}/preview-leads`, { method: 'POST', body: JSON.stringify({ filters }) }),
+  addLeadsToCampaign: (id, filters = {}) => fetchJson(`/campaigns/${id}/add-leads`, { method: 'POST', body: JSON.stringify({ filters }) }),
+  getCampaignSendQueue: (id) => fetchJson(`/campaigns/${id}/send-queue`),
+  recordCampaignSend: (id, payload) => fetchJson(`/campaigns/${id}/record-send`, { method: 'POST', body: JSON.stringify(payload) }),
+  deleteCampaign: (id) => fetchJson(`/campaigns/${id}`, { method: 'DELETE' }),
+
+  // Phase C: Marketing Hub - Overview & Sources
+  getMarketingOverview: () => fetchJson('/marketing/overview'),
+  getSourcesReport: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    return fetchJson(`/marketing/sources-report?${qs.toString()}`);
+  },
+  addInboundLead: (payload) => fetchJson('/marketing/inbound-lead', { method: 'POST', body: JSON.stringify(payload) })
 };

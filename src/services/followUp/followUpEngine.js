@@ -15,8 +15,9 @@ class FollowUpEngine {
    * @param {string} userId
    * @param {number} leadId
    * @param {string} initialChannel ('email' | 'whatsapp')
+   * @param {number|null} campaignId
    */
-  async scheduleInitialFollowUps(userId, leadId, initialChannel = 'call') {
+  async scheduleInitialFollowUps(userId, leadId, initialChannel = 'call', campaignId = null) {
     try {
       const existing = await FollowUp.count({
         where: { userId, leadId, status: 'pending' }
@@ -47,6 +48,7 @@ class FollowUpEngine {
           channel,
           step: 'day4',
           status: 'pending',
+          campaignId: campaignId || null,
           notes: 'Automated Day 4 follow-up: Check digital catalog & offer yarn swatch box.'
         },
         {
@@ -56,6 +58,7 @@ class FollowUpEngine {
           channel,
           step: 'day7',
           status: 'pending',
+          campaignId: campaignId || null,
           notes: 'Automated Day 7 follow-up: Final follow-up on custom size specs and project timeline.'
         }
       ]);
@@ -66,7 +69,7 @@ class FollowUpEngine {
         { where: { id: leadId, userId } }
       );
 
-      logger.info({ leadId, day4, day7 }, 'Scheduled Day 4 and Day 7 follow-ups');
+      logger.info({ leadId, day4, day7, campaignId }, 'Scheduled Day 4 and Day 7 follow-ups');
     } catch (err) {
       logger.error({ err: err.message, leadId }, 'Failed to schedule initial follow-ups');
     }
@@ -77,7 +80,8 @@ class FollowUpEngine {
    * 1. Cancels all pending follow-ups for this lead
    * 2. Moves lead status to 'replied'
    * 3. Clears nextFollowUpAt
-   * 4. Logs to OutreachLog with outcome: 'replied'
+   * 4. Updates most recent outbound OutreachLog outcome to 'replied' for A/B attribution
+   * 5. Logs to OutreachLog with outcome: 'replied'
    */
   async markReplied(userId, leadId, replyNote = '') {
     const lead = await Lead.findOne({ where: { id: leadId, userId } });
@@ -97,10 +101,22 @@ class FollowUpEngine {
       nextFollowUpAt: null
     });
 
+    // Attribute reply to the most recent outbound OutreachLog for template and A/B tracking
+    const recentOutbound = await OutreachLog.findOne({
+      where: { userId, leadId },
+      order: [['sentAt', 'DESC']]
+    });
+    if (recentOutbound && recentOutbound.outcome !== 'replied') {
+      await recentOutbound.update({ outcome: 'replied' });
+    }
+
     // Record an outreach log entry for the reply
     await OutreachLog.create({
       userId,
       leadId,
+      campaignId: recentOutbound?.campaignId || null,
+      templateId: recentOutbound?.templateId || null,
+      variant: recentOutbound?.variant || 'A',
       channel: lead.whatsapp ? 'whatsapp' : 'email',
       step: 'reply_received',
       messageSent: replyNote || 'Lead replied to outreach',
@@ -108,7 +124,7 @@ class FollowUpEngine {
       recipient: lead.email || lead.phone || lead.businessName
     });
 
-    logger.info({ leadId, cancelledCount }, 'Lead marked as replied and pending follow-ups cancelled');
+    logger.info({ leadId, cancelledCount, attributedLogId: recentOutbound?.id }, 'Lead marked as replied and pending follow-ups cancelled');
 
     return {
       success: true,
