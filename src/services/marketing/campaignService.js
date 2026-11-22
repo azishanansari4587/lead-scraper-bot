@@ -322,6 +322,75 @@ class CampaignService {
   }
 
   /**
+   * Deterministic Template Selection Engine (Item 2)
+   * Resolves the single active template to use for a lead:
+   * 1. Filters by isActive = true.
+   * 2. Finds template for specific buyerType, ordered by: isDefault DESC, updatedAt DESC, id DESC.
+   * 3. If none found and buyerType specified, falls back to generic active template (buyerType = null).
+   * 4. If requested variant is 'B' and no active B template exists, falls back to active Variant A template.
+   * 5. Always returns { template, templateId, variant, isFallback }.
+   */
+  async resolveTemplate(userId, { channel = 'email', buyerType = null, step = 'day1', variant = 'A' }) {
+    const ch = channel === 'whatsapp' ? 'whatsapp' : 'email';
+
+    const findActive = async (bType, v) => {
+      const where = {
+        userId,
+        channel: ch,
+        step,
+        variant: v,
+        isActive: true
+      };
+      if (bType) {
+        where.buyerType = bType;
+      } else {
+        where.buyerType = null;
+      }
+
+      return OutreachTemplate.findOne({
+        where,
+        order: [
+          ['isDefault', 'DESC'],
+          ['updatedAt', 'DESC'],
+          ['id', 'DESC']
+        ]
+      });
+    };
+
+    // 1. Try specific buyerType with requested variant
+    let template = await findActive(buyerType, variant);
+
+    // 2. Fall back to generic template (buyerType = null) with requested variant
+    if (!template && buyerType) {
+      template = await findActive(null, variant);
+    }
+
+    // 3. Honest Challenger Fallback: if variant was 'B' and no active B template found, fall back to Variant A
+    if (!template && variant === 'B') {
+      let fallbackA = await findActive(buyerType, 'A');
+      if (!fallbackA && buyerType) {
+        fallbackA = await findActive(null, 'A');
+      }
+
+      if (fallbackA) {
+        return {
+          template: fallbackA,
+          templateId: fallbackA.id,
+          variant: 'A', // Honest fallback to A
+          isFallback: true
+        };
+      }
+    }
+
+    return {
+      template,
+      templateId: template?.id || null,
+      variant: template ? variant : 'A',
+      isFallback: false
+    };
+  }
+
+  /**
    * Retrieves send queue for campaign channel with A/B template assignment and OptOut safety
    */
   async getCampaignSendQueue(userId, campaignId) {
@@ -359,44 +428,19 @@ class CampaignService {
       if (optedOut) continue;
 
       // Deterministic A/B variant assignment
-      let variant = abTestingService.getLeadVariant(lead.id);
+      const assignedVariant = abTestingService.getLeadVariant(lead.id);
 
-      // Find matching template for variant
-      let template = await OutreachTemplate.findOne({
-        where: {
-          userId,
-          channel: campaign.channel === 'whatsapp' ? 'whatsapp' : 'email',
-          buyerType: lead.buyerType || null,
-          step: 'day1',
-          variant
-        }
-      }) || await OutreachTemplate.findOne({
-        where: {
-          userId,
-          channel: campaign.channel === 'whatsapp' ? 'whatsapp' : 'email',
-          variant
-        }
+      // Deterministic active template resolution
+      const resolved = await this.resolveTemplate(userId, {
+        channel: campaign.channel,
+        buyerType: lead.buyerType || null,
+        step: 'day1',
+        variant: assignedVariant
       });
 
-      // Item 3: Honest Fallback - if assigned B but no B template exists, fall back to A and tag as A!
-      if (!template && variant === 'B') {
-        template = await OutreachTemplate.findOne({
-          where: {
-            userId,
-            channel: campaign.channel === 'whatsapp' ? 'whatsapp' : 'email',
-            buyerType: lead.buyerType || null,
-            step: 'day1',
-            variant: 'A'
-          }
-        }) || await OutreachTemplate.findOne({
-          where: {
-            userId,
-            channel: campaign.channel === 'whatsapp' ? 'whatsapp' : 'email',
-            variant: 'A'
-          }
-        });
-        variant = 'A'; // Honest attribution
-      }
+      const template = resolved.template;
+      const variant = resolved.variant;
+      const templateId = resolved.templateId;
 
       const bodyText = template?.body || `Hello ${lead.businessName}, we are Knotiq Rugs, direct manufacturers of handmade rugs based in Ajman & Bhadohi.`;
       const subjectText = template?.subject || `Bespoke Rug Collections for ${lead.businessName}`;
@@ -420,7 +464,7 @@ class CampaignService {
         country: lead.country,
         score: lead.score,
         variant,
-        templateId: template?.id || null,
+        templateId,
         subject: subjectText,
         message: bodyText,
         previewMessage: bodyText,
@@ -455,58 +499,52 @@ class CampaignService {
     }
 
     const channel = campaign.channel === 'whatsapp' ? 'whatsapp' : 'email';
-    let variant = payload.variant || abTestingService.getLeadVariant(leadId);
+    const targetVariant = payload.variant || abTestingService.getLeadVariant(leadId);
+
+    // Resolve template deterministically
+    let template = null;
     let templateId = payload.templateId || null;
-    let messageSent = payload.messageSent;
+    let variant = targetVariant;
 
-    // Item 3: Honest attribution check for variant B
-    if (variant === 'B') {
-      let bTemplate = null;
-      if (templateId) {
-        bTemplate = await OutreachTemplate.findOne({ where: { id: templateId, userId, variant: 'B' } });
-      }
-      if (!bTemplate) {
-        bTemplate = await OutreachTemplate.findOne({
-          where: {
-            userId,
-            channel,
-            buyerType: lead.buyerType || null,
-            step: 'day1',
-            variant: 'B'
-          }
-        });
-      }
-
-      if (!bTemplate) {
-        // Fall back to A template and record as 'A' so attribution stays honest
-        variant = 'A';
-        const aTemplate = await OutreachTemplate.findOne({
-          where: {
-            userId,
-            channel,
-            buyerType: lead.buyerType || null,
-            step: 'day1',
-            variant: 'A'
-          }
-        }) || await OutreachTemplate.findOne({
-          where: {
-            userId,
-            channel,
-            variant: 'A'
-          }
-        });
-        if (aTemplate) {
-          templateId = aTemplate.id;
-          if (!messageSent || messageSent === 'Outreach dispatched via campaign queue') {
-            messageSent = aTemplate.body;
-          }
-        }
+    if (templateId) {
+      template = await OutreachTemplate.findOne({ where: { id: templateId, userId } });
+      if (template) {
+        variant = template.variant || targetVariant;
       }
     }
 
-    messageSent = messageSent || 'Outreach dispatched via campaign queue';
+    if (!template) {
+      const resolved = await this.resolveTemplate(userId, {
+        channel,
+        buyerType: lead.buyerType || null,
+        step: 'day1',
+        variant: targetVariant
+      });
+      template = resolved.template;
+      templateId = resolved.templateId;
+      variant = resolved.variant;
+    }
 
-    // 1. Create OutreachLog with campaign attribution
+    const messageSent = payload.messageSent || template?.body || 'Outreach dispatched via campaign queue';
+
+    // Zero-mutation guard for DRY_RUN mode
+    const isDryRun = payload.dryRun !== undefined ? payload.dryRun : (env.DRY_RUN || false);
+    if (isDryRun) {
+      logger.info({ userId, campaignId, leadId, channel, variant, templateId, dryRun: true }, '🧪 [DRY_RUN] Simulated campaign outreach send - zero mutations');
+      return {
+        success: true,
+        simulated: true,
+        leadId,
+        variant,
+        templateId,
+        channel,
+        leadStatus: lead.status,
+        followUpsCreated: 0,
+        message: '[DRY_RUN] Zero mutations performed in dry-run mode'
+      };
+    }
+
+    // 1. Create OutreachLog with campaign attribution & actual templateId used
     const log = await OutreachLog.create({
       userId,
       leadId,
@@ -534,12 +572,13 @@ class CampaignService {
       leadStatus = 'contacted';
     }
 
-    logger.info({ userId, campaignId, leadId, channel, variant }, 'Recorded campaign outreach send');
+    logger.info({ userId, campaignId, leadId, channel, variant, templateId }, 'Recorded campaign outreach send');
     return {
       success: true,
       logId: log.id,
       leadId,
       variant,
+      templateId,
       channel,
       leadStatus,
       followUpsCreated: 2
@@ -547,7 +586,8 @@ class CampaignService {
   }
 
   /**
-   * Dispatch campaign email respecting daily send cap, anti-spam delay pacing, and DRY_RUN (Item 5)
+   * Dispatch campaign email respecting daily send cap, anti-spam delay pacing, and DRY_RUN (Item 1 & 5)
+   * In DRY_RUN: returns simulated preview, zero database mutations, no follow-ups, and cap untouched.
    */
   async dispatchCampaignEmail(userId, campaignId, leadId, options = {}) {
     const campaign = await Campaign.findOne({ where: { id: campaignId, userId } });
@@ -563,7 +603,7 @@ class CampaignService {
     }
 
     // 2. Daily Send Cap Check (cannot bypass)
-    const dailyCap = options.dailyCap || outreachHelper.dailyCap;
+    const dailyCap = options.dailyCap !== undefined ? options.dailyCap : outreachHelper.dailyCap;
     const currentSent = outreachHelper.getDailySentCount(userId);
     if (currentSent >= dailyCap) {
       throw new Error(`Daily outreach limit reached (${currentSent}/${dailyCap} messages). Send blocked.`);
@@ -574,14 +614,50 @@ class CampaignService {
       await new Promise((resolve) => setTimeout(resolve, options.delayMs));
     }
 
-    // 4. DRY_RUN check
+    // 4. Resolve template and variant deterministically
+    const targetVariant = options.variant || abTestingService.getLeadVariant(leadId);
+    const resolved = await this.resolveTemplate(userId, {
+      channel: 'email',
+      buyerType: lead.buyerType || null,
+      step: 'day1',
+      variant: targetVariant
+    });
+
+    const template = resolved.template;
+    const variant = resolved.variant;
+    const templateId = resolved.templateId;
+    const subject = template?.subject || `Bespoke Rug Collections for ${lead.businessName}`;
+    const body = options.messageSent || template?.body || `Hello ${lead.businessName}, we are Knotiq Rugs.`;
+
+    // 5. DRY_RUN Guard: Zero real data mutations!
     const isDryRun = options.dryRun !== undefined ? options.dryRun : (env.DRY_RUN || false);
 
-    // 5. Variant resolution & recording
+    if (isDryRun) {
+      logger.info(
+        { userId, campaignId, leadId, recipient: lead.email, variant, templateId, dryRun: true },
+        '🧪 [DRY_RUN] Campaign email dispatch simulated - zero database mutations'
+      );
+      return {
+        success: true,
+        simulated: true,
+        message: 'DRY_RUN simulation only: no database mutations, no follow-ups scheduled, and daily cap unchanged.',
+        leadId: lead.id,
+        variant,
+        channel: 'email',
+        recipient: lead.email,
+        templateId,
+        previewSubject: subject,
+        previewMessage: body,
+        dailySent: currentSent, // Untouched!
+        dailyCap
+      };
+    }
+
+    // Live Execution: mutates data, creates logs, schedules follow-ups, and consumes daily quota
     const record = await this.recordCampaignSend(userId, campaignId, leadId, {
-      variant: options.variant,
-      templateId: options.templateId,
-      messageSent: options.messageSent
+      variant,
+      templateId,
+      messageSent: body
     });
 
     // Increment daily count
@@ -589,7 +665,7 @@ class CampaignService {
 
     return {
       success: true,
-      simulated: isDryRun,
+      simulated: false,
       dailySent: outreachHelper.getDailySentCount(userId),
       dailyCap,
       ...record

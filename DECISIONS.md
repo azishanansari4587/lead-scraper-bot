@@ -202,3 +202,22 @@ This document records all significant technical and design choices made during t
 - **Campaign Archival Safeguards (`campaignService.js`, `api/routes/campaigns.js`):**
   - Campaigns with associated leads, calls, or outreach activity cannot be hard-deleted. Delete requests automatically route to `status = 'archived'`.
   - Added dedicated `POST /api/campaigns/:id/archive` and `POST /api/campaigns/:id/unarchive` endpoints, with matching UI actions in the dashboard.
+
+## 19. Phase C Review Round 2: DRY_RUN Zero-Mutation & Deterministic Template Resolution
+- **Strict DRY_RUN Zero-Mutation Policy (`campaignService.js`, `bulkSendService.js`):**
+  - In dry-run mode (`dryRun: true` or `DRY_RUN=true`):
+    - Real data mutations are completely blocked: `Lead.status` remains untouched (never moves to `contacted`), `OutreachLog` records are NOT created, and `FollowUp`s are NOT scheduled.
+    - Daily send caps are untouched (`BulkSendLog.status` set to `'simulated'`, so `getDailySentCount` which queries `status = 'sent'` does not increment).
+    - A simulation response is returned with full preview copy and message details.
+    - The existing `bulkSendService.processJob` was updated to adhere to the exact same zero-mutation standard for both email and WhatsApp.
+- **Deterministic Active Template Resolution (`campaignService.js`, `OutreachTemplate.js`, `006_template_active_and_lead_statuses.js`):**
+  - Added `isActive` boolean (default `true`) to `OutreachTemplate` with composite index `['userId', 'isActive']`.
+  - When resolving templates for outreach dispatch:
+    1. Filter strictly by `userId`, `channel`, `step`, `variant`, and `isActive: true`.
+    2. Specificity fallback: exact `buyerType` match preferred, falling back to general `buyerType: null`.
+    3. Deterministic resolution order: `isDefault DESC`, `updatedAt DESC`, `id DESC`.
+    4. Honest attribution: if Challenger Variant B is missing an active template, falls back to active Variant A, uses Variant A copy, and records `variant = 'A'` with the actual `templateId` on `OutreachLog`.
+- **MySQL ENUM Column Drift & Migration Strategy (`006_template_active_and_lead_statuses.js`):**
+  - Audit revealed `Campaigns.status`, `Campaigns.channel`, `ContentPosts.status`, `ContentPosts.platform`, and `Tasks.status` were defined as `VARCHAR/STRING` columns in migration 004 and 005 and are NOT MySQL ENUMs. Thus `'archived'` will never be rejected by MySQL.
+  - However, `Leads.status` was defined in `001_initial_schema.js` on MySQL as `ENUM('new', 'contacted', 'replied', 'won', 'lost', 'not_interested')`.
+  - To prevent MySQL data truncation errors when Phase A/C statuses (`sample_sent`, `quotation`, `negotiation`, `repeat_client`) are written, a separate idempotent `migrations/006_template_active_and_lead_statuses.js` was created with `ALTER TABLE Leads MODIFY COLUMN status ENUM(...)`.

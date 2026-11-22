@@ -27,7 +27,7 @@ router.get('/templates', async (req, res, next) => {
 
 router.post('/templates', async (req, res, next) => {
   try {
-    const { name, targetLeadType, buyerType, step = 'day1', variant = 'A', channel = 'email', subject, body, isDefault } = req.body;
+    const { name, targetLeadType, buyerType, step = 'day1', variant = 'A', channel = 'email', subject, body, isDefault, isActive = true } = req.body;
     if (!name || !body) {
       return res.status(400).json({ error: 'ValidationError', message: 'name and body are required' });
     }
@@ -42,7 +42,8 @@ router.post('/templates', async (req, res, next) => {
       channel,
       subject,
       body,
-      isDefault: !!isDefault
+      isDefault: !!isDefault,
+      isActive: isActive !== undefined ? !!isActive : true
     });
 
     res.status(201).json({ success: true, template });
@@ -63,6 +64,23 @@ router.put('/templates/:id', async (req, res, next) => {
 
     const { id: _, userId: __, ...updates } = req.body;
     await template.update(updates);
+    res.json({ success: true, template });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/templates/:id/toggle-active', async (req, res, next) => {
+  try {
+    const template = await OutreachTemplate.findOne({
+      where: { id: req.params.id, userId: req.userId }
+    });
+
+    if (!template) {
+      return res.status(404).json({ error: 'NotFound', message: 'Template not found' });
+    }
+
+    await template.update({ isActive: !template.isActive });
     res.json({ success: true, template });
   } catch (err) {
     next(err);

@@ -50,12 +50,17 @@ const OutreachTemplate = sequelize.define('OutreachTemplate', {
   isDefault: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   }
 }, {
   tableName: 'OutreachTemplates',
   timestamps: true,
   indexes: [
     { fields: ['userId', 'channel'] },
+    { fields: ['userId', 'isActive'] },
     { fields: ['buyerType', 'step', 'channel', 'variant'] }
   ]
 });

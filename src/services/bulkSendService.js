@@ -509,16 +509,19 @@ class BulkSendService {
           }
 
           // Dispatch email
+          const isDryRun = Boolean(job.dryRun || env.DRY_RUN);
           const res = await this.sendEmail({
             to: rawEmail,
             subject: renderedSubject,
             body: renderedBody,
             attachments: job.attachments,
-            dryRun: job.dryRun
+            dryRun: isDryRun
           });
 
-          const logStatus = res.success ? 'sent' : 'failed';
-          if (res.success) {
+          const logStatus = isDryRun ? 'simulated' : (res.success ? 'sent' : 'failed');
+          if (isDryRun) {
+            job.simulated = (job.simulated || 0) + 1;
+          } else if (res.success) {
             job.sent++;
           } else {
             job.failed++;
@@ -547,10 +550,11 @@ class BulkSendService {
               businessName: companyName,
               status: logStatus,
               error: res.error || null,
-              details: { dryRun: job.dryRun, messageId: res.messageId }
+              details: { dryRun: isDryRun, simulated: isDryRun, messageId: res.messageId }
             });
 
-            if (res.success && leadId) {
+            // Zero mutation in DRY_RUN mode: do not alter Lead status, do not create OutreachLog, do not schedule follow-ups
+            if (res.success && leadId && !isDryRun) {
               await Lead.update(
                 { status: 'contacted', lastContactedAt: new Date() },
                 { where: { id: leadId } }
@@ -663,17 +667,20 @@ class BulkSendService {
           }
 
           // Dispatch WhatsApp
+          const isDryRun = Boolean(job.dryRun || env.DRY_RUN);
           const res = await this.sendWhatsApp({
             to: cleanedPhone,
             message: renderedBody,
             lead: rawLead,
             attachments: job.attachments,
             useTemplate: job.useTemplate,
-            dryRun: job.dryRun
+            dryRun: isDryRun
           });
 
-          const logStatus = res.success ? 'sent' : 'failed';
-          if (res.success) {
+          const logStatus = isDryRun ? 'simulated' : (res.success ? 'sent' : 'failed');
+          if (isDryRun) {
+            job.simulated = (job.simulated || 0) + 1;
+          } else if (res.success) {
             job.sent++;
           } else {
             job.failed++;
@@ -702,10 +709,11 @@ class BulkSendService {
               businessName: companyName,
               status: logStatus,
               error: res.error || null,
-              details: { dryRun: job.dryRun, messageId: res.messageId }
+              details: { dryRun: isDryRun, simulated: isDryRun, messageId: res.messageId }
             });
 
-            if (res.success && leadId) {
+            // Zero mutation in DRY_RUN mode: do not alter Lead status, do not create OutreachLog, do not schedule follow-ups
+            if (res.success && leadId && !isDryRun) {
               await Lead.update(
                 { status: 'contacted', lastContactedAt: new Date() },
                 { where: { id: leadId } }

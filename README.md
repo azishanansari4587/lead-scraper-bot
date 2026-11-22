@@ -273,9 +273,10 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
 
 ## 7. Phase C Demo Checklist & Verification Guide
 
-1. **Email Campaign Path in `DRY_RUN` Mode:**
-   - Execute `POST /api/campaigns/:id/dispatch-email` or queue send with `DRY_RUN=true`.
-   - Verifies email dispatch logs simulation without sending live SMTP traffic, increments daily sent counters, updates lead to `contacted`, and schedules Day 4 & Day 7 follow-ups.
+1. **Email Campaign & Bulk Outreach in `DRY_RUN` Mode (Zero-Mutation Verification):**
+   - Execute `POST /api/campaigns/:id/dispatch-email` or bulk send with `dryRun: true` or `DRY_RUN=true`.
+   - Verifies simulation response is returned with full preview copy and simulation log markers.
+   - Proves zero real database mutations occur: lead status remains `new` (never moves to `contacted`), zero `OutreachLog` records are written, zero `FollowUp`s are scheduled, and daily send caps remain completely untouched.
 2. **Dynamic OptOut Suppression After Campaign Addition:**
    - Ingest a lead into a campaign via `POST /api/campaigns/:id/add-leads`.
    - Add that lead's email/phone to the OptOut list via `POST /api/optout`.

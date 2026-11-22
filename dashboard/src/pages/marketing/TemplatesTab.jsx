@@ -52,6 +52,7 @@ export default function TemplatesTab() {
   const [buyerTypeFilter, setBuyerTypeFilter] = useState('all');
   const [stepFilter, setStepFilter] = useState('all');
   const [variantFilter, setVariantFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState('all');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -67,7 +68,8 @@ export default function TemplatesTab() {
     variant: 'B',
     subject: '',
     body: '',
-    isDefault: false
+    isDefault: false,
+    isActive: true
   });
 
   const loadTemplates = useCallback(async () => {
@@ -86,6 +88,17 @@ export default function TemplatesTab() {
     loadTemplates();
   }, [loadTemplates]);
 
+  const handleToggleActive = async (template) => {
+    try {
+      await api.toggleTemplateActive(template.id);
+      const newState = template.isActive !== false ? 'deactivated' : 'activated';
+      toast.success(`Template ${newState}`);
+      loadTemplates();
+    } catch (err) {
+      toast.error(err.message || 'Failed to toggle template status');
+    }
+  };
+
   const handleOpenCreate = (prefillVariant = 'B') => {
     setEditingTemplate(null);
     setFormData({
@@ -96,7 +109,8 @@ export default function TemplatesTab() {
       variant: prefillVariant,
       subject: '',
       body: '',
-      isDefault: false
+      isDefault: false,
+      isActive: true
     });
     setIsModalOpen(true);
   };
@@ -111,7 +125,8 @@ export default function TemplatesTab() {
       variant: template.variant || 'A',
       subject: template.subject || '',
       body: template.body || '',
-      isDefault: !!template.isDefault
+      isDefault: !!template.isDefault,
+      isActive: template.isActive !== false
     });
     setIsModalOpen(true);
   };
@@ -133,7 +148,8 @@ export default function TemplatesTab() {
         variant: formData.variant,
         subject: formData.channel === 'email' ? formData.subject?.trim() : null,
         body: formData.body.trim(),
-        isDefault: formData.isDefault
+        isDefault: formData.isDefault,
+        isActive: formData.isActive
       };
 
       if (editingTemplate) {
@@ -172,6 +188,8 @@ export default function TemplatesTab() {
     }
     if (stepFilter !== 'all' && t.step !== stepFilter) return false;
     if (variantFilter !== 'all' && (t.variant || 'A') !== variantFilter) return false;
+    if (activeFilter === 'active' && t.isActive === false) return false;
+    if (activeFilter === 'inactive' && t.isActive !== false) return false;
     return true;
   });
 
@@ -282,6 +300,23 @@ export default function TemplatesTab() {
             <option value="A">Variant A (Default Control)</option>
             <option value="B">Variant B (Challenger)</option>
           </select>
+
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: 'var(--surface-subtle)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--text-primary)',
+              fontSize: 'var(--font-sm)'
+            }}
+          >
+            <option value="all">All Statuses (Active & Inactive)</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
         </div>
       </Card>
 
@@ -372,6 +407,34 @@ export default function TemplatesTab() {
                         {template.isDefault && (
                           <Badge size="xs" variant="success">Default</Badge>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleActive(template)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0
+                          }}
+                          title={template.isActive !== false ? 'Click to deactivate' : 'Click to activate'}
+                        >
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: template.isActive !== false ? 'rgba(34, 197, 94, 0.15)' : 'rgba(148, 163, 184, 0.2)',
+                              color: template.isActive !== false ? '#22c55e' : 'var(--text-muted)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span style={{ fontSize: '8px' }}>●</span>
+                            {template.isActive !== false ? 'Active' : 'Inactive'}
+                          </span>
+                        </button>
                       </div>
                     </div>
 
@@ -579,16 +642,30 @@ export default function TemplatesTab() {
               />
             </Field>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="checkbox"
-                id="template-default"
-                checked={formData.isDefault}
-                onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-              />
-              <label htmlFor="template-default" style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                Set as default template for this segment and channel
-              </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  id="template-active"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                />
+                <label htmlFor="template-active" style={{ fontSize: 'var(--font-sm)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 500 }}>
+                  Active (eligible for outreach campaigns and A/B variant selection)
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  id="template-default"
+                  checked={formData.isDefault}
+                  onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
+                />
+                <label htmlFor="template-default" style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  Set as default template for this segment and channel
+                </label>
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>

@@ -76,6 +76,7 @@ export const api = {
   getTemplates: () => fetchJson('/outreach/templates'),
   createTemplate: (template) => fetchJson('/outreach/templates', { method: 'POST', body: JSON.stringify(template) }),
   updateTemplate: (id, updates) => fetchJson(`/outreach/templates/${id}`, { method: 'PUT', body: JSON.stringify(updates) }),
+  toggleTemplateActive: (id) => fetchJson(`/outreach/templates/${id}/toggle-active`, { method: 'PATCH' }),
   deleteTemplate: (id) => fetchJson(`/outreach/templates/${id}`, { method: 'DELETE' }),
   generateDraft: (leadId, channel = 'email') => fetchJson('/outreach/draft', { method: 'POST', body: JSON.stringify({ leadId, channel }) }),
   recordSent: (leadId, channel = 'email') => fetchJson('/outreach/record-sent', { method: 'POST', body: JSON.stringify({ leadId, channel }) }),

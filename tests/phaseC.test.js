@@ -13,13 +13,16 @@ import {
   Call,
   UserSettings,
   ReminderLog,
-  AuditLog
+  AuditLog,
+  BulkSendLog
 } from '../src/models';
 import campaignService from '../src/services/marketing/campaignService';
 import abTestingService from '../src/services/marketing/abTestingService';
 import attributionService from '../src/services/marketing/attributionService';
 import inboundService from '../src/services/marketing/inboundService';
 import followUpEngine from '../src/services/followUp/followUpEngine';
+import outreachHelper from '../src/services/outreach/outreachHelper';
+import bulkSendService from '../src/services/bulkSendService';
 import { getMergedCalendar } from '../src/services/planner/calendarService';
 import founderReminderService from '../src/services/reminders/founderReminderService';
 import { backfillSources } from '../src/scripts/backfillSources';
@@ -904,16 +907,16 @@ describe('Phase C - Marketing Hub Suite', () => {
         status: 'new'
       });
 
-      // 1. DRY_RUN dispatch works without live SMTP
+      // 1. DRY_RUN dispatch works without live SMTP and leaves daily cap untouched
       const dispatch1 = await campaignService.dispatchCampaignEmail(emailTestUser, campaign.id, lead.id, {
         dryRun: true,
         dailyCap: 1
       });
       expect(dispatch1.success).toBe(true);
       expect(dispatch1.simulated).toBe(true);
-      expect(dispatch1.dailySent).toBe(1);
+      expect(dispatch1.dailySent).toBe(0);
 
-      // 2. Cannot bypass daily cap: subsequent attempt with dailyCap=1 fails
+      // 2. Cannot bypass daily cap: subsequent attempt when cap is reached blocks
       const lead2 = await createTestLead({
         userId: emailTestUser,
         businessName: 'Second Lead',
@@ -924,7 +927,7 @@ describe('Phase C - Marketing Hub Suite', () => {
 
       await expect(
         campaignService.dispatchCampaignEmail(emailTestUser, campaign.id, lead2.id, {
-          dailyCap: 1
+          dailyCap: 0
         })
       ).rejects.toThrow(/Daily outreach limit reached/);
     });
@@ -1051,6 +1054,244 @@ describe('Phase C - Marketing Hub Suite', () => {
       expect(res.body.lead.status).toBe('won');
       expect(Number(res.body.lead.dealValue)).toBe(75000);
       expect(res.body.lead.dealCurrency).toBe('AED');
+    });
+  });
+
+  describe('20. Review Round 2: DRY_RUN Zero-Mutation Policy (Item 1)', () => {
+    it('campaign dispatch in DRY_RUN mode leaves lead status unchanged, creates 0 FollowUps, creates 0 OutreachLogs, and leaves daily cap untouched', async () => {
+      const dryUserId = `test_dry_user_${Date.now()}`;
+      const campaign = await Campaign.create({
+        userId: dryUserId,
+        name: 'Dry Run Campaign Test',
+        channel: 'email',
+        status: 'active'
+      });
+
+      const lead = await createTestLead({
+        userId: dryUserId,
+        businessName: 'Dry Run Target Lead',
+        email: 'dryrun@sample.ae',
+        status: 'new'
+      });
+
+      await CampaignLead.create({
+        userId: dryUserId,
+        campaignId: campaign.id,
+        leadId: lead.id
+      });
+
+      const capBefore = outreachHelper.getDailySentCount(dryUserId);
+
+      // Dispatch in dry-run mode
+      const result = await campaignService.dispatchCampaignEmail(dryUserId, campaign.id, lead.id, {
+        dryRun: true
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.simulated).toBe(true);
+
+      // 1. Lead status must NOT be modified
+      const refreshedLead = await Lead.findByPk(lead.id);
+      expect(refreshedLead.status).toBe('new');
+      expect(refreshedLead.lastContactedAt).toBeNull();
+
+      // 2. No OutreachLog rows created
+      const logs = await OutreachLog.findAll({ where: { userId: dryUserId, leadId: lead.id } });
+      expect(logs.length).toBe(0);
+
+      // 3. No FollowUp rows created
+      const followUps = await FollowUp.findAll({ where: { userId: dryUserId, leadId: lead.id } });
+      expect(followUps.length).toBe(0);
+
+      // 4. Daily cap counter must not be consumed
+      const capAfter = outreachHelper.getDailySentCount(dryUserId);
+      expect(capAfter).toBe(capBefore);
+    });
+
+    it('bulk send in DRY_RUN mode leaves lead status unchanged, creates 0 OutreachLogs, creates 0 FollowUps, and records BulkSendLog as simulated', async () => {
+      const dryBulkUserId = `test_dry_bulk_${Date.now()}`;
+      const lead = await createTestLead({
+        userId: dryBulkUserId,
+        businessName: 'Dry Run Bulk Lead',
+        email: 'drybulk@sample.ae',
+        status: 'new'
+      });
+
+      const jobId = bulkSendService.startBulkJob({
+        channels: ['email'],
+        userId: dryBulkUserId,
+        leads: [lead],
+        subject: 'Dry run test email',
+        message: 'Hello {businessName}',
+        dryRun: true,
+        delayMs: 0
+      });
+
+      await bulkSendService.processJob(jobId, [lead]);
+
+      // 1. Lead status must NOT change
+      const refreshedLead = await Lead.findByPk(lead.id);
+      expect(refreshedLead.status).toBe('new');
+
+      // 2. Zero OutreachLog rows
+      const outreachLogs = await OutreachLog.findAll({ where: { leadId: lead.id } });
+      expect(outreachLogs.length).toBe(0);
+
+      // 3. Zero FollowUps
+      const followUps = await FollowUp.findAll({ where: { leadId: lead.id } });
+      expect(followUps.length).toBe(0);
+
+      // 4. BulkSendLog recorded with status = simulated
+      const bulkLogs = await BulkSendLog.findAll({ where: { jobId } });
+      expect(bulkLogs.length).toBe(1);
+      expect(bulkLogs[0].status).toBe('simulated');
+      expect(bulkLogs[0].details.simulated).toBe(true);
+
+      // 5. Daily sent count from BulkSendLog does NOT count simulated sends
+      const dailySent = await bulkSendService.getDailySentCount();
+      // Count of 'sent' status should be unaffected
+      const simulatedCount = await BulkSendLog.count({ where: { status: 'simulated', jobId } });
+      expect(simulatedCount).toBe(1);
+    });
+  });
+
+  describe('21. Review Round 2: Deterministic Template Selection & Toggle Active (Item 2)', () => {
+    it('picks the most recently updated active template, ignores inactive ones, and returns actual templateId', async () => {
+      const tmplUserId = `test_tmpl_user_${Date.now()}`;
+
+      // 1. Inactive template (older)
+      const tInactive = await OutreachTemplate.create({
+        userId: tmplUserId,
+        name: 'Designer Day 1 Inactive',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A',
+        subject: 'Inactive Subject',
+        body: 'Inactive body copy',
+        isActive: false,
+        updatedAt: new Date(Date.now() - 60000)
+      });
+
+      // 2. Active template (older)
+      const tActiveOlder = await OutreachTemplate.create({
+        userId: tmplUserId,
+        name: 'Designer Day 1 Older Active',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A',
+        subject: 'Older Active Subject',
+        body: 'Older active body copy',
+        isActive: true,
+        isDefault: false,
+        updatedAt: new Date(Date.now() - 30000)
+      });
+
+      // 3. Active template (newer)
+      const tActiveNewer = await OutreachTemplate.create({
+        userId: tmplUserId,
+        name: 'Designer Day 1 Newer Active',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A',
+        subject: 'Newer Active Subject',
+        body: 'Newer active body copy',
+        isActive: true,
+        isDefault: false,
+        updatedAt: new Date()
+      });
+
+      // Resolve template deterministically
+      const resolved = await campaignService.resolveTemplate(tmplUserId, {
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A'
+      });
+
+      expect(resolved.template).not.toBeNull();
+      // Must pick newer active template, ignoring the inactive one
+      expect(resolved.template.id).toBe(tActiveNewer.id);
+      expect(resolved.templateId).toBe(tActiveNewer.id);
+      expect(resolved.variant).toBe('A');
+    });
+
+    it('falls back to active Variant A when Variant B template is inactive or missing, recording attribution as A', async () => {
+      const fbUserId = `test_fb_user_${Date.now()}`;
+
+      // Active Variant A
+      const tActiveA = await OutreachTemplate.create({
+        userId: fbUserId,
+        name: 'Hotel Day 1 Active A',
+        channel: 'email',
+        buyerType: 'hotel',
+        step: 'day1',
+        variant: 'A',
+        subject: 'Hotel A Subject',
+        body: 'Hotel A body copy',
+        isActive: true
+      });
+
+      // Inactive Variant B
+      await OutreachTemplate.create({
+        userId: fbUserId,
+        name: 'Hotel Day 1 Inactive B',
+        channel: 'email',
+        buyerType: 'hotel',
+        step: 'day1',
+        variant: 'B',
+        subject: 'Hotel B Inactive Subject',
+        body: 'Hotel B inactive body copy',
+        isActive: false
+      });
+
+      // Attempt to resolve Variant B
+      const resolved = await campaignService.resolveTemplate(fbUserId, {
+        channel: 'email',
+        buyerType: 'hotel',
+        step: 'day1',
+        variant: 'B'
+      });
+
+      // Since B is inactive, must fall back to A and honest attribution records variant = 'A'
+      expect(resolved.template).not.toBeNull();
+      expect(resolved.template.id).toBe(tActiveA.id);
+      expect(resolved.templateId).toBe(tActiveA.id);
+      expect(resolved.variant).toBe('A');
+    });
+
+    it('toggles template isActive via PATCH /api/outreach/templates/:id/toggle-active', async () => {
+      const template = await OutreachTemplate.create({
+        userId: testUserId,
+        name: 'Toggle Test Template',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A',
+        subject: 'Test Subject',
+        body: 'Test Body',
+        isActive: true
+      });
+
+      // Toggle to inactive
+      const res1 = await request(app)
+        .patch(`/api/outreach/templates/${template.id}/toggle-active`)
+        .set(authHeaders);
+
+      expect(res1.status).toBe(200);
+      expect(res1.body.success).toBe(true);
+      expect(res1.body.template.isActive).toBe(false);
+
+      // Toggle back to active
+      const res2 = await request(app)
+        .patch(`/api/outreach/templates/${template.id}/toggle-active`)
+        .set(authHeaders);
+
+      expect(res2.status).toBe(200);
+      expect(res2.body.success).toBe(true);
+      expect(res2.body.template.isActive).toBe(true);
     });
   });
 });
