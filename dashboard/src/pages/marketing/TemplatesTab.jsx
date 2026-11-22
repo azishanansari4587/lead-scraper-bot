@@ -10,7 +10,8 @@ import {
   Sparkles,
   Info,
   Mail,
-  MessageSquare
+  MessageSquare,
+  AlertTriangle
 } from 'lucide-react';
 import { api } from '../../api';
 import { Button, Card, Modal, Field, Select, Textarea, Badge, useToast } from '../../components/ui';
@@ -191,6 +192,15 @@ export default function TemplatesTab() {
     if (activeFilter === 'active' && t.isActive === false) return false;
     if (activeFilter === 'inactive' && t.isActive !== false) return false;
     return true;
+  });
+
+  // Calculate active collisions: group by channel:buyerType:step:variant
+  const collisionCounts = {};
+  templates.forEach((t) => {
+    if (t.isActive !== false) {
+      const key = `${t.channel}:${t.buyerType || 'general'}:${t.step || 'day1'}:${t.variant || 'A'}`;
+      collisionCounts[key] = (collisionCounts[key] || 0) + 1;
+    }
   });
 
   return (
@@ -467,6 +477,33 @@ export default function TemplatesTab() {
                       </button>
                     </div>
                   </div>
+
+                  {(() => {
+                    const key = `${template.channel}:${template.buyerType || 'general'}:${template.step || 'day1'}:${template.variant || 'A'}`;
+                    const isColliding = template.isActive !== false && (collisionCounts[key] || 0) > 1;
+                    if (!isColliding) return null;
+                    return (
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: '#d97706',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '6px 8px',
+                          marginBottom: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <AlertTriangle size={13} style={{ flexShrink: 0, color: '#f59e0b' }} />
+                        <span>
+                          <strong>Collision:</strong> Multiple active templates for this segment. System resolves by <strong>{template.isDefault ? 'this template (marked Default)' : 'Default flag, then newest update'}</strong>.
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {template.subject && (
                     <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', marginBottom: '8px', wordBreak: 'break-word' }}>

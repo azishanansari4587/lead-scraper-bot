@@ -26,6 +26,7 @@ import bulkSendService from '../src/services/bulkSendService';
 import { getMergedCalendar } from '../src/services/planner/calendarService';
 import founderReminderService from '../src/services/reminders/founderReminderService';
 import { backfillSources } from '../src/scripts/backfillSources';
+import sequelize from '../src/config/database';
 
 describe('Phase C - Marketing Hub Suite', () => {
   const testUserId = 'test_phase_c_founder';
@@ -1292,6 +1293,49 @@ describe('Phase C - Marketing Hub Suite', () => {
       expect(res2.status).toBe(200);
       expect(res2.body.success).toBe(true);
       expect(res2.body.template.isActive).toBe(true);
+    });
+  });
+
+  describe('22. Remote Database Safety Guard (ALLOW_REMOTE_DB)', () => {
+    it('blocks connection to non-local MySQL host when ALLOW_REMOTE_DB is false', () => {
+      const original = process.env.ALLOW_REMOTE_DB;
+      process.env.ALLOW_REMOTE_DB = 'false';
+      try {
+        expect(() => {
+          sequelize.validateHostSafety('82.25.121.167');
+        }).toThrow(/\[SAFETY GUARD\] Refusing database connection to remote host/);
+
+        expect(() => {
+          sequelize.validateHostSafety('remote-db.knotiqrugs.com');
+        }).toThrow(/\[SAFETY GUARD\] Refusing database connection to remote host/);
+      } finally {
+        process.env.ALLOW_REMOTE_DB = original;
+      }
+    });
+
+    it('permits connection to localhost, 127.0.0.1 and ::1 without ALLOW_REMOTE_DB', () => {
+      expect(() => sequelize.validateHostSafety('localhost')).not.toThrow();
+      expect(() => sequelize.validateHostSafety('127.0.0.1')).not.toThrow();
+      expect(() => sequelize.validateHostSafety('::1')).not.toThrow();
+      expect(sequelize.isLocalHost('localhost')).toBe(true);
+      expect(sequelize.isLocalHost('127.0.0.1')).toBe(true);
+      expect(sequelize.isLocalHost('::1')).toBe(true);
+      expect(sequelize.isLocalHost('82.25.121.167')).toBe(false);
+    });
+
+    it('permits connection to remote host when ALLOW_REMOTE_DB is explicitly true', () => {
+      const original = process.env.ALLOW_REMOTE_DB;
+      process.env.ALLOW_REMOTE_DB = 'true';
+      try {
+        expect(() => sequelize.validateHostSafety('82.25.121.167')).not.toThrow();
+      } finally {
+        process.env.ALLOW_REMOTE_DB = original;
+      }
+    });
+
+    it('enforces SQLite dialect in test environment', () => {
+      expect(process.env.NODE_ENV).toBe('test');
+      expect(sequelize.getDialect()).toBe('sqlite');
     });
   });
 });

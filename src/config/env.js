@@ -23,6 +23,7 @@ const envSchema = z.object({
   DB_PATH: z.string().default('./data/app.db'),
   DB_STORAGE: z.string().default('./data/app.db'),
   DB_LOGGING: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
+  ALLOW_REMOTE_DB: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
 
   // Auth (Clerk)
   CLERK_SECRET_KEY: z.string().optional().default(''),

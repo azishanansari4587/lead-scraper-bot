@@ -305,6 +305,7 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
 Detailed architectural documentation is available in [SECURITY.md](file:///f:/lead-scraper-bot/SECURITY.md) and [DECISIONS.md](file:///f:/lead-scraper-bot/DECISIONS.md).
 
 - **SSRF Immunity:** Pre-resolves DNS and blocks access to cloud metadata (`169.254.169.254`), private networks, and non-HTTP protocols.
+- **Remote Database Safety Guard (`ALLOW_REMOTE_DB`):** Refuses all database connections, migrations, and scripts targeting remote MySQL hosts unless `ALLOW_REMOTE_DB=true` is explicitly provided. Local development and tests strictly default to SQLite or localhost.
 - **Formula Injection Defense:** Prepends `'` to active spreadsheet formula characters in CSV exports.
 - **Prompt Injection Defense:** Wraps untrusted text in `<untrusted_scraped_data>` delimiters and enforces strict Zod schema validation.
 - **Signed Download Links:** HMAC-SHA256 download tokens expiring after 15 minutes with canonical path traversal guards.

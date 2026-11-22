@@ -216,8 +216,15 @@ This document records all significant technical and design choices made during t
     1. Filter strictly by `userId`, `channel`, `step`, `variant`, and `isActive: true`.
     2. Specificity fallback: exact `buyerType` match preferred, falling back to general `buyerType: null`.
     3. Deterministic resolution order: `isDefault DESC`, `updatedAt DESC`, `id DESC`.
-    4. Honest attribution: if Challenger Variant B is missing an active template, falls back to active Variant A, uses Variant A copy, and records `variant = 'A'` with the actual `templateId` on `OutreachLog`.
+       - A template with `isDefault = true` takes precedence over non-default active templates.
+       - If multiple templates share `isDefault` (or none have it), the template with the most recent `updatedAt` timestamp is selected.
+    4. Collision Warning in UI: When two or more active templates share the same `(buyerType, step, channel, variant)`, `TemplatesTab.jsx` displays a warning banner informing the user which template is actively selected.
+    5. Honest attribution: if Challenger Variant B is missing an active template, falls back to active Variant A, uses Variant A copy, and records `variant = 'A'` with the actual `templateId` on `OutreachLog`.
 - **MySQL ENUM Column Drift & Migration Strategy (`006_template_active_and_lead_statuses.js`):**
   - Audit revealed `Campaigns.status`, `Campaigns.channel`, `ContentPosts.status`, `ContentPosts.platform`, and `Tasks.status` were defined as `VARCHAR/STRING` columns in migration 004 and 005 and are NOT MySQL ENUMs. Thus `'archived'` will never be rejected by MySQL.
   - However, `Leads.status` was defined in `001_initial_schema.js` on MySQL as `ENUM('new', 'contacted', 'replied', 'won', 'lost', 'not_interested')`.
-  - To prevent MySQL data truncation errors when Phase A/C statuses (`sample_sent`, `quotation`, `negotiation`, `repeat_client`) are written, a separate idempotent `migrations/006_template_active_and_lead_statuses.js` was created with `ALTER TABLE Leads MODIFY COLUMN status ENUM(...)`.
+  - Migration 006 safely inspects `information_schema.COLUMNS` before altering `Leads.status`, preserves `NOT NULL`, `DEFAULT`, `CHARSET`, and `COLLATION`, and skips alteration if the values already exist.
+  - **Rollback Note (MySQL):** If rolling back `Leads.status` on MySQL to the initial 001 ENUM, any leads stored with newer statuses (`sample_sent`, `quotation`, `negotiation`, `repeat_client`) must first be updated to an allowed legacy status (`contacted` / `won`) before executing `ALTER TABLE Leads MODIFY COLUMN status ENUM('new','contacted','replied','won','lost','not_interested') DEFAULT 'new'`.
+- **Remote Database Safety Guard (`src/config/database.js`):**
+  - Refuses to connect or run migrations/scripts against non-local hosts (`host != 'localhost'` and `host != '127.0.0.1'`) unless `ALLOW_REMOTE_DB=true` is explicitly set in environment.
+  - In all test runs (`NODE_ENV === 'test'`), dialect is strictly forced to `sqlite` regardless of environment variables.
