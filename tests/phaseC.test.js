@@ -725,4 +725,332 @@ describe('Phase C - Marketing Hub Suite', () => {
       expect(updatedRef2.source).toBe('google_maps');
     });
   });
+
+  describe('14. Review Additions: Variant B Fallback & Honest Attribution (Item 3)', () => {
+    it('falls back to Variant A copy and records variant="A" when no Variant B template exists', async () => {
+      const uniqueUserId = `test_fallback_${Date.now()}`;
+
+      // Create only Variant A template for designer day1 email
+      const templateA = await OutreachTemplate.create({
+        userId: uniqueUserId,
+        name: 'Designer Day 1 - Angle A',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A',
+        subject: 'Bespoke Rug Collections A',
+        body: 'Angle A Copy: Luxury handcrafted rugs direct from Bhadohi.'
+      });
+
+      // Create a campaign
+      const campaign = await Campaign.create({
+        userId: uniqueUserId,
+        name: 'Honest Attribution Test Campaign',
+        channel: 'email'
+      });
+
+      // Create lead that maps to variant B deterministically
+      let leadForB = null;
+      for (let i = 0; i < 20; i++) {
+        const candidate = await createTestLead({
+          userId: uniqueUserId,
+          businessName: `Designer Studio ${i}`,
+          buyerType: 'designer',
+          status: 'new'
+        });
+        if (abTestingService.getLeadVariant(candidate.id) === 'B') {
+          leadForB = candidate;
+          break;
+        }
+      }
+      expect(leadForB).not.toBeNull();
+      expect(abTestingService.getLeadVariant(leadForB.id)).toBe('B');
+
+      await CampaignLead.create({
+        userId: uniqueUserId,
+        campaignId: campaign.id,
+        leadId: leadForB.id
+      });
+
+      // 1. In Send Queue: assigned B, but no B template -> falls back to A and sets variant = 'A'
+      const queueData = await campaignService.getCampaignSendQueue(uniqueUserId, campaign.id);
+      expect(queueData.queueLength).toBe(1);
+      const queueItem = queueData.queue[0];
+      expect(queueItem.variant).toBe('A');
+      expect(queueItem.message).toBe(templateA.body);
+
+      // 2. In recordCampaignSend: records as 'A' so attribution stays honest
+      const recordResult = await campaignService.recordCampaignSend(uniqueUserId, campaign.id, leadForB.id, {
+        variant: 'B', // Requested B, but B copy does not exist!
+        messageSent: null
+      });
+      expect(recordResult.success).toBe(true);
+      expect(recordResult.variant).toBe('A'); // Attribution corrected to A
+
+      const outreachLog = await OutreachLog.findOne({ where: { leadId: leadForB.id } });
+      expect(outreachLog.variant).toBe('A');
+      expect(outreachLog.messageSent).toBe(templateA.body);
+    });
+
+    it('uses Variant B template and records variant="B" when Variant B template exists', async () => {
+      const uniqueUserId = `test_variant_b_${Date.now()}`;
+
+      await OutreachTemplate.create({
+        userId: uniqueUserId,
+        name: 'Designer Day 1 - Angle A',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A',
+        body: 'Angle A Copy'
+      });
+
+      const templateB = await OutreachTemplate.create({
+        userId: uniqueUserId,
+        name: 'Designer Day 1 - Angle B',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'B',
+        body: 'Angle B Copy: Direct mill trade discounts.'
+      });
+
+      const campaign = await Campaign.create({
+        userId: uniqueUserId,
+        name: 'Variant B Campaign',
+        channel: 'email'
+      });
+
+      let leadForB = null;
+      for (let i = 0; i < 20; i++) {
+        const candidate = await createTestLead({
+          userId: uniqueUserId,
+          businessName: `Designer Studio ${i}`,
+          buyerType: 'designer',
+          status: 'new'
+        });
+        if (abTestingService.getLeadVariant(candidate.id) === 'B') {
+          leadForB = candidate;
+          break;
+        }
+      }
+
+      await CampaignLead.create({
+        userId: uniqueUserId,
+        campaignId: campaign.id,
+        leadId: leadForB.id
+      });
+
+      const queueData = await campaignService.getCampaignSendQueue(uniqueUserId, campaign.id);
+      expect(queueData.queue[0].variant).toBe('B');
+      expect(queueData.queue[0].message).toBe(templateB.body);
+
+      const record = await campaignService.recordCampaignSend(uniqueUserId, campaign.id, leadForB.id, {
+        variant: 'B',
+        templateId: templateB.id,
+        messageSent: templateB.body
+      });
+      expect(record.variant).toBe('B');
+
+      const log = await OutreachLog.findOne({ where: { leadId: leadForB.id } });
+      expect(log.variant).toBe('B');
+    });
+  });
+
+  describe('15. Review Additions: OutreachTemplate Index Handling (Item 4)', () => {
+    it('allows multiple templates with same buyerType, step, channel and variant without collision', async () => {
+      const multiUserId = `test_index_${Date.now()}`;
+
+      const t1 = await OutreachTemplate.create({
+        userId: multiUserId,
+        name: 'Dubai Luxury Villa Designer A',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A',
+        body: 'Copy 1'
+      });
+
+      const t2 = await OutreachTemplate.create({
+        userId: multiUserId,
+        name: 'Abu Dhabi Hospitality Designer A',
+        channel: 'email',
+        buyerType: 'designer',
+        step: 'day1',
+        variant: 'A',
+        body: 'Copy 2'
+      });
+
+      expect(t1.id).toBeDefined();
+      expect(t2.id).toBeDefined();
+      expect(t1.id).not.toBe(t2.id);
+    });
+  });
+
+  describe('16. Review Additions: Campaign Email Sending Protections (Item 5)', () => {
+    it('respects DRY_RUN simulation mode and cannot bypass daily caps', async () => {
+      const emailTestUser = `test_cap_user_${Date.now()}`;
+      const campaign = await Campaign.create({
+        userId: emailTestUser,
+        name: 'Protected Campaign',
+        channel: 'email'
+      });
+
+      const lead = await createTestLead({
+        userId: emailTestUser,
+        businessName: 'Protection Test Studio',
+        email: 'test@protection.com',
+        buyerType: 'designer',
+        status: 'new'
+      });
+
+      // 1. DRY_RUN dispatch works without live SMTP
+      const dispatch1 = await campaignService.dispatchCampaignEmail(emailTestUser, campaign.id, lead.id, {
+        dryRun: true,
+        dailyCap: 1
+      });
+      expect(dispatch1.success).toBe(true);
+      expect(dispatch1.simulated).toBe(true);
+      expect(dispatch1.dailySent).toBe(1);
+
+      // 2. Cannot bypass daily cap: subsequent attempt with dailyCap=1 fails
+      const lead2 = await createTestLead({
+        userId: emailTestUser,
+        businessName: 'Second Lead',
+        email: 'second@protection.com',
+        buyerType: 'designer',
+        status: 'new'
+      });
+
+      await expect(
+        campaignService.dispatchCampaignEmail(emailTestUser, campaign.id, lead2.id, {
+          dailyCap: 1
+        })
+      ).rejects.toThrow(/Daily outreach limit reached/);
+    });
+  });
+
+  describe('17. Review Additions: Campaign Archive & Unarchive (Item 6)', () => {
+    it('archives campaign with linked leads instead of hard-deleting, and unarchives on request', async () => {
+      const archUserId = `test_arch_${Date.now()}`;
+      const campaign = await Campaign.create({
+        userId: archUserId,
+        name: 'Active Exhibition Campaign',
+        status: 'active'
+      });
+
+      const lead = await createTestLead({
+        userId: archUserId,
+        businessName: 'Exhibition Client'
+      });
+
+      await CampaignLead.create({
+        userId: archUserId,
+        campaignId: campaign.id,
+        leadId: lead.id
+      });
+
+      // Archive via service
+      const archResult = await campaignService.archiveCampaign(archUserId, campaign.id);
+      expect(archResult.action).toBe('archived');
+
+      const checkedCampaign = await Campaign.findByPk(campaign.id);
+      expect(checkedCampaign.status).toBe('archived');
+
+      // Unarchive via HTTP API
+      const unarchRes = await request(app)
+        .post(`/api/campaigns/${campaign.id}/unarchive`)
+        .set({ 'x-test-user-id': archUserId, 'x-test-role': 'admin' });
+
+      expect(unarchRes.status).toBe(200);
+      expect(unarchRes.body.success).toBe(true);
+      expect(unarchRes.body.action).toBe('unarchived');
+
+      const activeCampaign = await Campaign.findByPk(campaign.id);
+      expect(activeCampaign.status).toBe('active');
+    });
+  });
+
+  describe('18. Review Additions: Funnel Lost Stage Derivation (Item 7)', () => {
+    it('reports lost leads separately and derives stage lost from status audit logs', async () => {
+      const funnelUserId = `test_funnel_lost_${Date.now()}`;
+      const campaign = await Campaign.create({
+        userId: funnelUserId,
+        name: 'Funnel Lost Tracking Campaign'
+      });
+
+      // Lead 1: Lost after Quotation
+      const leadQuote = await createTestLead({
+        userId: funnelUserId,
+        businessName: 'Lost Quote Client',
+        status: 'lost'
+      });
+      await AuditLog.create({
+        userId: funnelUserId,
+        entityType: 'Lead',
+        entityId: String(leadQuote.id),
+        action: 'update_lead_status',
+        details: { previousStatus: 'quotation', newStatus: 'lost' }
+      });
+
+      // Lead 2: Lost after Replied
+      const leadReplied = await createTestLead({
+        userId: funnelUserId,
+        businessName: 'Lost Replied Client',
+        status: 'lost'
+      });
+      await AuditLog.create({
+        userId: funnelUserId,
+        entityType: 'Lead',
+        entityId: String(leadReplied.id),
+        action: 'update_lead_status',
+        details: { previousStatus: 'replied', newStatus: 'lost' }
+      });
+
+      // Lead 3: Active Won Lead
+      const leadWon = await createTestLead({
+        userId: funnelUserId,
+        businessName: 'Won Client',
+        status: 'won',
+        dealValue: 50000
+      });
+
+      await CampaignLead.bulkCreate([
+        { userId: funnelUserId, campaignId: campaign.id, leadId: leadQuote.id },
+        { userId: funnelUserId, campaignId: campaign.id, leadId: leadReplied.id },
+        { userId: funnelUserId, campaignId: campaign.id, leadId: leadWon.id }
+      ]);
+
+      const funnel = await campaignService.getCampaignFunnel(funnelUserId, campaign.id);
+      expect(funnel.stages.won).toBe(1);
+      expect(funnel.lost.count).toBe(2);
+      expect(funnel.lost.byStage.quotation).toBe(1);
+      expect(funnel.lost.byStage.replied).toBe(1);
+      expect(funnel.lost.note).toContain('derived from status change audit logs');
+    });
+  });
+
+  describe('19. Review Additions: Mark Won with Deal Value & Currency (Item 8)', () => {
+    it('updates lead to won with dealValue and dealCurrency', async () => {
+      const lead = await createTestLead({
+        businessName: 'Won Deal Candidate',
+        status: 'negotiation'
+      });
+
+      const res = await request(app)
+        .patch(`/api/leads/${lead.id}`)
+        .set(authHeaders)
+        .send({
+          status: 'won',
+          dealValue: 75000,
+          dealCurrency: 'AED'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.lead.status).toBe('won');
+      expect(Number(res.body.lead.dealValue)).toBe(75000);
+      expect(res.body.lead.dealCurrency).toBe('AED');
+    });
+  });
 });

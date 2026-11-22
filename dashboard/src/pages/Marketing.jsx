@@ -16,6 +16,8 @@ import OverviewTab from './marketing/OverviewTab';
 import ContentTab from './marketing/ContentTab';
 import CampaignsTab from './marketing/CampaignsTab';
 import SourcesTab from './marketing/SourcesTab';
+import TemplatesTab from './marketing/TemplatesTab';
+import { FileText } from 'lucide-react';
 
 export default function Marketing() {
   const toast = useToast();
@@ -134,6 +136,7 @@ export default function Marketing() {
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
           { id: 'content', label: 'Content Calendar', icon: Calendar, badge: contentPosts.length },
           { id: 'campaigns', label: 'Trade Campaigns', icon: Megaphone, badge: campaigns.length },
+          { id: 'templates', label: 'Outreach & A/B Templates', icon: FileText },
           { id: 'sources', label: 'Sources & ROI', icon: TrendingUp }
         ].map((tab) => {
           const Icon = tab.icon;
@@ -222,6 +225,10 @@ export default function Marketing() {
           onCloseNewModal={() => setOpenNewCampaignModal(false)}
           selectedCampaignId={selectedCampaignId}
         />
+      )}
+
+      {activeTab === 'templates' && (
+        <TemplatesTab />
       )}
 
       {activeTab === 'sources' && (

@@ -190,7 +190,7 @@ graph TD
 | Command | Description |
 | :--- | :--- |
 | `npm start` | Starts Express API and serves built dashboard on port 5000 |
-| `npm test` | Runs complete automated test suite (153 tests across all phases) via Vitest |
+| `npm test` | Runs complete automated test suite (182 tests across all phases) via Vitest |
 | `npm run build` | Compiles React 19 + Vite dashboard into `dashboard/dist` |
 | `npm run migrate` | Executes idempotent database migrations tracking `SequelizeMeta` |
 | `npm run seed` | Seeds 65 international locations and 19 multilingual trade keyword sets |
@@ -260,11 +260,42 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
 | | `POST` | `/api/campaigns/:id/add-leads` | Bulk ingest filtered leads into campaign with OptOut exclusion |
 | | `GET` | `/api/campaigns/:id/send-queue` | Queued leads with prefilled wa.me links and deterministic A/B templates |
 | | `POST` | `/api/campaigns/:id/record-send` | Record campaign outreach send with Day 4/7 follow-up creation |
+| | `POST` | `/api/campaigns/:id/dispatch-email`| Dispatch campaign email with daily cap check, delay pacing, and DRY_RUN |
+| | `POST` | `/api/campaigns/:id/archive` | Explicitly archive a campaign to protect historical metrics |
+| | `POST` | `/api/campaigns/:id/unarchive` | Restore an archived campaign back to active |
 | | `DELETE`| `/api/campaigns/:id` | Archive campaign when activity exists, or delete if empty |
 | **Marketing** | `GET` | `/api/marketing/overview` | Cockpit with posts due this week, consistency gauge, and active funnels |
 | | `GET` | `/api/marketing/sources-report` | Sources conversion table, A/B reply rates (>=25 send guard), call rates |
 | | `GET` | `/api/marketing/export-sources` | Download Excel sources attribution report with formula injection defense |
 | | `POST` | `/api/marketing/inbound-lead` | Quick-add inbound lead from WhatsApp/walk-in with dedupe & Day 1 follow-up |
+
+---
+
+## 7. Phase C Demo Checklist & Verification Guide
+
+1. **Email Campaign Path in `DRY_RUN` Mode:**
+   - Execute `POST /api/campaigns/:id/dispatch-email` or queue send with `DRY_RUN=true`.
+   - Verifies email dispatch logs simulation without sending live SMTP traffic, increments daily sent counters, updates lead to `contacted`, and schedules Day 4 & Day 7 follow-ups.
+2. **Dynamic OptOut Suppression After Campaign Addition:**
+   - Ingest a lead into a campaign via `POST /api/campaigns/:id/add-leads`.
+   - Add that lead's email/phone to the OptOut list via `POST /api/optout`.
+   - Request `GET /api/campaigns/:id/send-queue` or attempt `POST /api/campaigns/:id/record-send`.
+   - Verifies the lead is completely omitted from the send queue and blocked from dispatch with an explicit suppression error.
+3. **Campaign Archival Safeguards (Archive vs Delete):**
+   - Attempt to delete a campaign with linked leads or outreach logs.
+   - Verifies the campaign is transitioned to `status: 'archived'` instead of hard-deleted, preserving analytics and audit history.
+   - Click **Unarchive** or call `POST /api/campaigns/:id/unarchive` to restore the campaign to active status.
+4. **Variant B Challenger Fallback & Honest Attribution:**
+   - Create a campaign lead that deterministically maps to Variant B.
+   - Provide only a Variant A template (no Variant B template created).
+   - Verifies the send queue delivers Variant A copy, and `recordCampaignSend` records `variant = 'A'` in `OutreachLog`, ensuring zero false attribution.
+5. **Mark Lead Won Dialog & Deal Value Tracking:**
+   - On the Leads page, change a lead's status to `Won`.
+   - A modal prompts for Deal Value (e.g. `25,000`) and Currency (`AED`) with a "Skip" option.
+   - Won revenue immediately appears in the campaign funnel and Sources ROI reports.
+6. **Lost Leads Breakdown by Stage:**
+   - View any campaign funnel details drawer.
+   - Lost leads are reported separately from the funnel with drop-off stage derived from audit logs (`Lost at Quotation`, `Lost at Contacted`) and an explicit limitation note for legacy transitions.
 
 ---
 

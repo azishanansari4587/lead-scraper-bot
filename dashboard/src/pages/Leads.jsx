@@ -192,6 +192,15 @@ export default function Leads({ onExportRequested }) {
   const [callFollowUpDate, setCallFollowUpDate] = useState('');
   const [savingCall, setSavingCall] = useState(false);
 
+  // Mark Won Modal (Item 8)
+  const [isWonModalOpen, setIsWonModalOpen] = useState(false);
+  const [wonLeadTarget, setWonLeadTarget] = useState(null);
+  const [wonDealValue, setWonDealValue] = useState('');
+  const [wonDealCurrency, setWonDealCurrency] = useState('AED');
+  const [savingWonDeal, setSavingWonDeal] = useState(false);
+  const [drawerDealValue, setDrawerDealValue] = useState('');
+  const [drawerDealCurrency, setDrawerDealCurrency] = useState('AED');
+
   // 300ms Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -482,6 +491,8 @@ export default function Leads({ onExportRequested }) {
     setDrawerStatus(lead.status || 'new');
     setDrawerPriority(lead.priority || 'warm');
     setDrawerBuyerType(lead.buyerType || 'unclassified');
+    setDrawerDealValue(lead.dealValue !== null && lead.dealValue !== undefined ? String(lead.dealValue) : '');
+    setDrawerDealCurrency(lead.dealCurrency || 'AED');
     setInitialDrawerState({
       notes: lead.notes || '',
       status: lead.status || 'new',
@@ -543,12 +554,53 @@ export default function Leads({ onExportRequested }) {
     }
   };
 
+  // Mark Won helpers (Item 8)
+  const promptMarkWon = (lead) => {
+    setWonLeadTarget(lead);
+    setWonDealValue(lead.dealValue !== null && lead.dealValue !== undefined ? String(lead.dealValue) : '');
+    setWonDealCurrency(lead.dealCurrency || 'AED');
+    setIsWonModalOpen(true);
+  };
+
+  const handleConfirmWonDeal = async (includeValue = true) => {
+    if (!wonLeadTarget) return;
+    setSavingWonDeal(true);
+    try {
+      const updates = {
+        status: 'won',
+        dealValue: includeValue && wonDealValue ? parseFloat(wonDealValue) : null,
+        dealCurrency: wonDealCurrency || 'AED'
+      };
+      await api.updateLead(wonLeadTarget.id, updates);
+      toast.success(
+        includeValue && wonDealValue
+          ? `Deal marked Won! Recorded ${updates.dealCurrency} ${parseFloat(wonDealValue).toLocaleString()}`
+          : 'Deal marked Won without deal value.'
+      );
+      setIsWonModalOpen(false);
+      setLeads((prev) => prev.map((l) => (l.id === wonLeadTarget.id ? { ...l, ...updates } : l)));
+      if (selectedLead && selectedLead.id === wonLeadTarget.id) {
+        setSelectedLead((prev) => ({ ...prev, ...updates }));
+        setDrawerStatus('won');
+        setDrawerDealValue(updates.dealValue !== null ? String(updates.dealValue) : '');
+        setDrawerDealCurrency(updates.dealCurrency);
+      }
+      loadLeads();
+    } catch (err) {
+      toast.error(`Failed to mark won: ${err.message}`);
+    } finally {
+      setSavingWonDeal(false);
+    }
+  };
+
   const hasDrawerUnsavedChanges =
     Boolean(selectedLead) &&
     (drawerNotes !== initialDrawerState.notes ||
       drawerStatus !== initialDrawerState.status ||
       drawerPriority !== initialDrawerState.priority ||
-      drawerBuyerType !== initialDrawerState.buyerType);
+      drawerBuyerType !== initialDrawerState.buyerType ||
+      drawerDealValue !== (selectedLead.dealValue !== null && selectedLead.dealValue !== undefined ? String(selectedLead.dealValue) : '') ||
+      drawerDealCurrency !== (selectedLead.dealCurrency || 'AED'));
 
   const saveLeadChanges = async () => {
     if (!selectedLead) return;
@@ -557,7 +609,9 @@ export default function Leads({ onExportRequested }) {
         notes: drawerNotes,
         status: drawerStatus,
         priority: drawerPriority,
-        buyerType: drawerBuyerType
+        buyerType: drawerBuyerType,
+        dealValue: drawerDealValue ? parseFloat(drawerDealValue) : null,
+        dealCurrency: drawerDealCurrency || 'AED'
       });
       toast.success('Lead updated successfully.');
       setSelectedLead(null);
@@ -1676,13 +1730,59 @@ export default function Leads({ onExportRequested }) {
                     <Select
                       id="drawer-lead-status"
                       value={drawerStatus}
-                      onChange={(e) => setDrawerStatus(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDrawerStatus(val);
+                        if (val === 'won' && selectedLead && selectedLead.status !== 'won') {
+                          promptMarkWon(selectedLead);
+                        }
+                      }}
                     >
                       {STATUS_OPTIONS.filter((s) => s.value).map((st) => (
                         <option key={st.value} value={st.value}>{st.label}</option>
                       ))}
                     </Select>
                   </Field>
+
+                  {drawerStatus === 'won' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px', padding: '10px', backgroundColor: 'rgba(16, 185, 129, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                      <Field label="Deal Value (Won Revenue)">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={drawerDealValue}
+                          onChange={(e) => setDrawerDealValue(e.target.value)}
+                          placeholder="e.g. 25000"
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            backgroundColor: 'var(--surface-subtle)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-md)',
+                            color: 'var(--emerald-accent)',
+                            fontWeight: 700,
+                            fontSize: 'var(--font-sm)'
+                          }}
+                        />
+                      </Field>
+                      <Field label="Currency">
+                        <input
+                          type="text"
+                          value={drawerDealCurrency}
+                          onChange={(e) => setDrawerDealCurrency(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            backgroundColor: 'var(--surface-subtle)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-md)',
+                            color: 'var(--text-primary)',
+                            fontSize: 'var(--font-sm)'
+                          }}
+                        />
+                      </Field>
+                    </div>
+                  )}
 
                   <Field label="Internal Notes & Interactions" id="drawer-lead-notes">
                     <Textarea
@@ -1815,6 +1915,88 @@ export default function Leads({ onExportRequested }) {
           </div>
         )}
       </Drawer>
+
+      {/* Mark Won Dialog (Item 8) */}
+      {isWonModalOpen && wonLeadTarget && (
+        <Modal
+          isOpen={isWonModalOpen}
+          onClose={() => setIsWonModalOpen(false)}
+          title={`🎉 Deal Won: ${wonLeadTarget.businessName}`}
+          size="sm"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <p style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+              Congratulations on closing this account! Optionally record the deal value to attribute won revenue to marketing channels and campaigns.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+              <Field label="Deal Value (Optional)">
+                <input
+                  type="number"
+                  step="0.01"
+                  autoFocus
+                  value={wonDealValue}
+                  onChange={(e) => setWonDealValue(e.target.value)}
+                  placeholder="e.g. 35000"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--surface-subtle)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--emerald-accent)',
+                    fontWeight: 700,
+                    fontSize: 'var(--font-sm)'
+                  }}
+                />
+              </Field>
+
+              <Field label="Currency">
+                <input
+                  type="text"
+                  value={wonDealCurrency}
+                  onChange={(e) => setWonDealCurrency(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--surface-subtle)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                    fontSize: 'var(--font-sm)'
+                  }}
+                />
+              </Field>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => handleConfirmWonDeal(false)}
+                disabled={savingWonDeal}
+                title="Mark as Won without recording a value"
+              >
+                Skip (No Value)
+              </Button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button type="button" variant="secondary" onClick={() => setIsWonModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={savingWonDeal}
+                  onClick={() => handleConfirmWonDeal(true)}
+                >
+                  Save Deal & Mark Won
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Confirm Delete Dialog */}
       <ConfirmDialog

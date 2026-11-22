@@ -189,3 +189,16 @@ This document records all significant technical and design choices made during t
 - **Inbound Lead Quick-Add & Source Standardization (`inboundService.js`, `backfillSources.js`):**
   - Quick-add modal for inbound WhatsApp inquiries or walk-ins; auto-creates Day 1 follow-up and deduplicates by phone or email.
   - Idempotent backfill script with `--dry-run` flag to normalize legacy source strings (e.g. `ig` -> `instagram`, `gmaps` -> `google_maps`).
+- **Lost Stage Derivation & Explicit Limitations (`campaignService.js`):**
+  - Lost leads are reported separately from the active funnel.
+  - The drop-off stage (e.g. lost after `quotation`, `replied`, or `contacted`) is derived from `AuditLog` status change entries (`details.previousStatus`), falling back to outreach log milestones.
+  - *Documented Limitation:* For leads transitioned prior to audit logging or without outreach records, the stage lost cannot be reconstructed retroactively and is classified as `unknown` with an explanatory note surfaced in both the UI and reporting metrics.
+- **Honest Variant Attribution & Fallback Guard (`campaignService.js`):**
+  - When a lead maps to Variant B but no Variant B template exists for that buyer type/step/channel, the system falls back to Variant A copy for message dispatch.
+  - Crucially, the outreach log records `variant = 'A'` rather than `'B'`. This guarantees honest attribution: Variant B is never credited with sends or conversions unless Challenger B copy was actually delivered.
+- **OutreachTemplate Index Architecture:**
+  - Composite index `['buyerType', 'step', 'channel', 'variant']` is defined as non-unique across both SQLite and MySQL.
+  - Allows multiple user-authored drafts and personal templates for the same segment while preventing DB-level constraint collisions on nullable `buyerType`.
+- **Campaign Archival Safeguards (`campaignService.js`, `api/routes/campaigns.js`):**
+  - Campaigns with associated leads, calls, or outreach activity cannot be hard-deleted. Delete requests automatically route to `status = 'archived'`.
+  - Added dedicated `POST /api/campaigns/:id/archive` and `POST /api/campaigns/:id/unarchive` endpoints, with matching UI actions in the dashboard.

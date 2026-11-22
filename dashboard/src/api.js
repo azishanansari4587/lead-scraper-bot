@@ -75,6 +75,8 @@ export const api = {
   // Outreach & Templates
   getTemplates: () => fetchJson('/outreach/templates'),
   createTemplate: (template) => fetchJson('/outreach/templates', { method: 'POST', body: JSON.stringify(template) }),
+  updateTemplate: (id, updates) => fetchJson(`/outreach/templates/${id}`, { method: 'PUT', body: JSON.stringify(updates) }),
+  deleteTemplate: (id) => fetchJson(`/outreach/templates/${id}`, { method: 'DELETE' }),
   generateDraft: (leadId, channel = 'email') => fetchJson('/outreach/draft', { method: 'POST', body: JSON.stringify({ leadId, channel }) }),
   recordSent: (leadId, channel = 'email') => fetchJson('/outreach/record-sent', { method: 'POST', body: JSON.stringify({ leadId, channel }) }),
 
@@ -245,6 +247,9 @@ export const api = {
   addLeadsToCampaign: (id, filters = {}) => fetchJson(`/campaigns/${id}/add-leads`, { method: 'POST', body: JSON.stringify({ filters }) }),
   getCampaignSendQueue: (id) => fetchJson(`/campaigns/${id}/send-queue`),
   recordCampaignSend: (id, payload) => fetchJson(`/campaigns/${id}/record-send`, { method: 'POST', body: JSON.stringify(payload) }),
+  dispatchCampaignEmail: (id, payload) => fetchJson(`/campaigns/${id}/dispatch-email`, { method: 'POST', body: JSON.stringify(payload) }),
+  archiveCampaign: (id) => fetchJson(`/campaigns/${id}/archive`, { method: 'POST' }),
+  unarchiveCampaign: (id) => fetchJson(`/campaigns/${id}/unarchive`, { method: 'POST' }),
   deleteCampaign: (id) => fetchJson(`/campaigns/${id}`, { method: 'DELETE' }),
 
   // Phase C: Marketing Hub - Overview & Sources

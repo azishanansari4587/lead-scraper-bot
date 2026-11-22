@@ -261,12 +261,24 @@ export default function CampaignsTab({
   const handleArchiveCampaign = async (campaignId) => {
     if (!window.confirm('Archive this campaign? If no activity exists it will be deleted, otherwise marked as archived.')) return;
     try {
-      const res = await api.deleteCampaign(campaignId);
+      const res = await api.archiveCampaign(campaignId);
       toast.success(res.message || 'Campaign archived');
       setIsDetailDrawerOpen(false);
       onRefresh();
     } catch (err) {
       toast.error(err.message || 'Failed to archive campaign');
+    }
+  };
+
+  // Unarchive Campaign
+  const handleUnarchiveCampaign = async (campaignId) => {
+    try {
+      await api.unarchiveCampaign(campaignId);
+      toast.success('Campaign restored to active.');
+      setIsDetailDrawerOpen(false);
+      onRefresh();
+    } catch (err) {
+      toast.error(err.message || 'Failed to unarchive campaign');
     }
   };
 
@@ -478,6 +490,48 @@ export default function CampaignsTab({
                     {campaignDetails.funnel?.revenue?.leadsWithNoValue || 0} leads with no deal value recorded
                   </span>
                 </div>
+
+                {/* Lost Leads Breakdown (Item 7) */}
+                <div style={{ marginTop: '14px', padding: '12px', backgroundColor: 'rgba(239, 68, 68, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AlertTriangle size={14} style={{ color: 'var(--rose-accent, #ef4444)' }} />
+                      <strong style={{ fontSize: 'var(--font-sm)', color: 'var(--text-primary)' }}>
+                        Lost / Dropped Leads ({campaignDetails.funnel?.lost?.count || 0})
+                      </strong>
+                    </div>
+                    <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-dim)' }}>
+                      {campaignDetails.funnel?.lost?.percentage || 0}% drop-off
+                    </span>
+                  </div>
+
+                  {campaignDetails.funnel?.lost?.byStage && (
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                      {Object.entries(campaignDetails.funnel.lost.byStage).map(([stage, count]) => {
+                        if (count === 0) return null;
+                        return (
+                          <span
+                            key={stage}
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: 'var(--surface-subtle)',
+                              color: 'var(--text-secondary)',
+                              border: '1px solid var(--border-subtle)'
+                            }}
+                          >
+                            Lost at {stage.replace('_', ' ')}: <strong style={{ color: 'var(--rose-accent, #ef4444)' }}>{count}</strong>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                    Note: Stage lost is derived from status change audit logs and outreach history. Unlogged transitions are categorized under "unknown".
+                  </div>
+                </div>
               </div>
             </Card>
 
@@ -492,9 +546,15 @@ export default function CampaignsTab({
                 </Button>
               </div>
 
-              <Button size="sm" variant="danger" onClick={() => handleArchiveCampaign(activeCampaign.id)}>
-                <Archive size={14} style={{ marginRight: '6px' }} /> Archive Campaign
-              </Button>
+              {activeCampaign.status === 'archived' ? (
+                <Button size="sm" variant="secondary" onClick={() => handleUnarchiveCampaign(activeCampaign.id)}>
+                  <CheckCircle2 size={14} style={{ marginRight: '6px', color: 'var(--emerald-accent)' }} /> Unarchive Campaign
+                </Button>
+              ) : (
+                <Button size="sm" variant="danger" onClick={() => handleArchiveCampaign(activeCampaign.id)}>
+                  <Archive size={14} style={{ marginRight: '6px' }} /> Archive Campaign
+                </Button>
+              )}
             </div>
 
             {/* Lead Roster Table */}

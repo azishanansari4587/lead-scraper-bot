@@ -342,7 +342,8 @@ class BulkSendService {
       skipAlreadySent = true,
       delayMs = env.DELAY_MS || 3000,
       dryRun = env.DRY_RUN || false,
-      userId = 'dev_user_knotiq'
+      userId = 'dev_user_knotiq',
+      campaignId = null
     } = jobParams;
 
     const jobId = `job_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -350,6 +351,7 @@ class BulkSendService {
     const job = {
       jobId,
       userId,
+      campaignId,
       status: 'running',
       total: leads.length,
       processed: 0,
@@ -558,6 +560,7 @@ class BulkSendService {
                 await OutreachLog.create({
                   userId: job.userId || 'founder',
                   leadId,
+                  campaignId: job.campaignId || null,
                   channel: 'email',
                   step: 'day1',
                   messageSent: renderedBody,

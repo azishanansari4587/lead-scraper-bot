@@ -243,6 +243,61 @@ router.post('/:id/record-send', async (req, res, next) => {
 });
 
 /**
+ * POST /api/campaigns/:id/dispatch-email - Dispatch campaign email respecting cap, pacing, and DRY_RUN (Item 5)
+ */
+router.post('/:id/dispatch-email', async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const campaignId = parseInt(req.params.id, 10);
+    const { leadId, variant, templateId, messageSent, delayMs, dryRun } = req.body;
+
+    if (!leadId) {
+      return res.status(400).json({ success: false, message: 'leadId is required' });
+    }
+
+    const result = await campaignService.dispatchCampaignEmail(userId, campaignId, leadId, {
+      variant,
+      templateId,
+      messageSent,
+      delayMs,
+      dryRun
+    });
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/campaigns/:id/archive - Explicitly archive a campaign (Item 6)
+ */
+router.post('/:id/archive', async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const campaignId = parseInt(req.params.id, 10);
+    const result = await campaignService.archiveCampaign(userId, campaignId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/campaigns/:id/unarchive - Unarchive a campaign (Item 6)
+ */
+router.post('/:id/unarchive', async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const campaignId = parseInt(req.params.id, 10);
+    const result = await campaignService.unarchiveCampaign(userId, campaignId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * DELETE /api/campaigns/:id - Archive or delete campaign (Rule 9)
  */
 router.delete('/:id', async (req, res, next) => {

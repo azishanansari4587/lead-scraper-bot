@@ -27,7 +27,7 @@ router.get('/templates', async (req, res, next) => {
 
 router.post('/templates', async (req, res, next) => {
   try {
-    const { name, targetLeadType, channel = 'email', subject, body, isDefault } = req.body;
+    const { name, targetLeadType, buyerType, step = 'day1', variant = 'A', channel = 'email', subject, body, isDefault } = req.body;
     if (!name || !body) {
       return res.status(400).json({ error: 'ValidationError', message: 'name and body are required' });
     }
@@ -36,6 +36,9 @@ router.post('/templates', async (req, res, next) => {
       userId: req.userId,
       name,
       targetLeadType,
+      buyerType: buyerType || null,
+      step: step || 'day1',
+      variant: variant || 'A',
       channel,
       subject,
       body,

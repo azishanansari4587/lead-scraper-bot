@@ -55,7 +55,8 @@ const OutreachTemplate = sequelize.define('OutreachTemplate', {
   tableName: 'OutreachTemplates',
   timestamps: true,
   indexes: [
-    { fields: ['userId', 'channel'] }
+    { fields: ['userId', 'channel'] },
+    { fields: ['buyerType', 'step', 'channel', 'variant'] }
   ]
 });
 

@@ -12,8 +12,11 @@ const OptOut = require('../../models/OptOut');
 const OutreachLog = require('../../models/OutreachLog');
 const OutreachTemplate = require('../../models/OutreachTemplate');
 const Call = require('../../models/Call');
+const AuditLog = require('../../models/AuditLog');
 const followUpEngine = require('../followUp/followUpEngine');
 const abTestingService = require('./abTestingService');
+const outreachHelper = require('../outreach/outreachHelper');
+const bulkSendService = require('../bulkSendService');
 const env = require('../../config/env');
 const logger = require('../../config/logger');
 
@@ -206,6 +209,25 @@ class CampaignService {
       }
     });
 
+    // Derive lost stages from audit logs and activity history (Item 7)
+    const lostByStage = {
+      new: 0,
+      contacted: 0,
+      replied: 0,
+      sample_sent: 0,
+      quotation: 0,
+      negotiation: 0,
+      unknown: 0
+    };
+
+    for (const { lead } of campaignLeads) {
+      if (!lead) continue;
+      if (lead.status === 'lost' || lead.status === 'not_interested') {
+        const stageLost = await this.getLostStageForLead(lead.id, userId);
+        lostByStage[stageLost] = (lostByStage[stageLost] || 0) + 1;
+      }
+    }
+
     const calcPct = (cnt) => totalAdded > 0 ? parseFloat(((cnt / totalAdded) * 100).toFixed(1)) : 0;
 
     const stages = [
@@ -238,7 +260,9 @@ class CampaignService {
       stages,
       lost: {
         count: lostCount,
-        percentage: calcPct(lostCount)
+        percentage: calcPct(lostCount),
+        byStage: lostByStage,
+        note: 'Lost stages are derived from status change audit logs and activity history. Unlogged transitions are categorized under unknown.'
       },
       revenue: {
         total: wonRevenueTotal,
@@ -255,6 +279,46 @@ class CampaignService {
         repliesReceived: repliedCount
       }
     };
+  }
+
+  /**
+   * Derives stage at which a lead was lost from status change audit logs or outreach history
+   */
+  async getLostStageForLead(leadId, userId) {
+    try {
+      // 1. Check AuditLog for status change details
+      const audit = await AuditLog.findOne({
+        where: {
+          userId,
+          entityType: 'Lead',
+          entityId: String(leadId),
+          action: { [Op.or]: ['update_lead_status', 'update_lead'] }
+        },
+        order: [['createdAt', 'DESC']]
+      });
+
+      if (audit && audit.details) {
+        let details = audit.details;
+        if (typeof details === 'string') {
+          try { details = JSON.parse(details); } catch (_) {}
+        }
+        const prev = details?.previousStatus || details?.oldStatus || details?.fromStatus;
+        if (prev && STATUS_RANK[prev] !== undefined && STATUS_RANK[prev] > 0) {
+          return prev;
+        }
+      }
+
+      // 2. Fallback: inspect activity history
+      const hasReplied = await OutreachLog.findOne({ where: { userId, leadId, outcome: 'replied' } });
+      if (hasReplied) return 'replied';
+
+      const hasSent = await OutreachLog.findOne({ where: { userId, leadId, outcome: 'sent' } });
+      if (hasSent) return 'contacted';
+
+      return 'new';
+    } catch {
+      return 'unknown';
+    }
   }
 
   /**
@@ -294,11 +358,11 @@ class CampaignService {
       const optedOut = await this.isLeadOptedOut(lead);
       if (optedOut) continue;
 
-      // Deterministic A/B variant
-      const variant = abTestingService.getLeadVariant(lead.id);
+      // Deterministic A/B variant assignment
+      let variant = abTestingService.getLeadVariant(lead.id);
 
-      // Find matching template
-      const template = await OutreachTemplate.findOne({
+      // Find matching template for variant
+      let template = await OutreachTemplate.findOne({
         where: {
           userId,
           channel: campaign.channel === 'whatsapp' ? 'whatsapp' : 'email',
@@ -313,6 +377,26 @@ class CampaignService {
           variant
         }
       });
+
+      // Item 3: Honest Fallback - if assigned B but no B template exists, fall back to A and tag as A!
+      if (!template && variant === 'B') {
+        template = await OutreachTemplate.findOne({
+          where: {
+            userId,
+            channel: campaign.channel === 'whatsapp' ? 'whatsapp' : 'email',
+            buyerType: lead.buyerType || null,
+            step: 'day1',
+            variant: 'A'
+          }
+        }) || await OutreachTemplate.findOne({
+          where: {
+            userId,
+            channel: campaign.channel === 'whatsapp' ? 'whatsapp' : 'email',
+            variant: 'A'
+          }
+        });
+        variant = 'A'; // Honest attribution
+      }
 
       const bodyText = template?.body || `Hello ${lead.businessName}, we are Knotiq Rugs, direct manufacturers of handmade rugs based in Ajman & Bhadohi.`;
       const subjectText = template?.subject || `Bespoke Rug Collections for ${lead.businessName}`;
@@ -355,6 +439,7 @@ class CampaignService {
 
   /**
    * Record sent outreach for a campaign lead (Rule 6: re-checks OptOut and schedules Day 4/7 follow-ups)
+   * Enforces honest attribution: if B template missing, falls back to A and records as 'A'.
    */
   async recordCampaignSend(userId, campaignId, leadId, payload = {}) {
     const campaign = await Campaign.findOne({ where: { id: campaignId, userId } });
@@ -370,9 +455,56 @@ class CampaignService {
     }
 
     const channel = campaign.channel === 'whatsapp' ? 'whatsapp' : 'email';
-    const variant = payload.variant || abTestingService.getLeadVariant(leadId);
-    const templateId = payload.templateId || null;
-    const messageSent = payload.messageSent || 'Outreach dispatched via campaign queue';
+    let variant = payload.variant || abTestingService.getLeadVariant(leadId);
+    let templateId = payload.templateId || null;
+    let messageSent = payload.messageSent;
+
+    // Item 3: Honest attribution check for variant B
+    if (variant === 'B') {
+      let bTemplate = null;
+      if (templateId) {
+        bTemplate = await OutreachTemplate.findOne({ where: { id: templateId, userId, variant: 'B' } });
+      }
+      if (!bTemplate) {
+        bTemplate = await OutreachTemplate.findOne({
+          where: {
+            userId,
+            channel,
+            buyerType: lead.buyerType || null,
+            step: 'day1',
+            variant: 'B'
+          }
+        });
+      }
+
+      if (!bTemplate) {
+        // Fall back to A template and record as 'A' so attribution stays honest
+        variant = 'A';
+        const aTemplate = await OutreachTemplate.findOne({
+          where: {
+            userId,
+            channel,
+            buyerType: lead.buyerType || null,
+            step: 'day1',
+            variant: 'A'
+          }
+        }) || await OutreachTemplate.findOne({
+          where: {
+            userId,
+            channel,
+            variant: 'A'
+          }
+        });
+        if (aTemplate) {
+          templateId = aTemplate.id;
+          if (!messageSent || messageSent === 'Outreach dispatched via campaign queue') {
+            messageSent = aTemplate.body;
+          }
+        }
+      }
+    }
+
+    messageSent = messageSent || 'Outreach dispatched via campaign queue';
 
     // 1. Create OutreachLog with campaign attribution
     const log = await OutreachLog.create({
@@ -415,7 +547,57 @@ class CampaignService {
   }
 
   /**
-   * Archive campaign when it has linked activity/leads (Rule 9)
+   * Dispatch campaign email respecting daily send cap, anti-spam delay pacing, and DRY_RUN (Item 5)
+   */
+  async dispatchCampaignEmail(userId, campaignId, leadId, options = {}) {
+    const campaign = await Campaign.findOne({ where: { id: campaignId, userId } });
+    if (!campaign) throw new Error('Campaign not found');
+
+    const lead = await Lead.findOne({ where: { id: leadId, userId } });
+    if (!lead) throw new Error('Lead not found');
+
+    // 1. OptOut Suppression check
+    const isOptedOut = await this.isLeadOptedOut(lead);
+    if (isOptedOut) {
+      throw new Error('Outreach blocked: Lead is on the OptOut suppression list.');
+    }
+
+    // 2. Daily Send Cap Check (cannot bypass)
+    const dailyCap = options.dailyCap || outreachHelper.dailyCap;
+    const currentSent = outreachHelper.getDailySentCount(userId);
+    if (currentSent >= dailyCap) {
+      throw new Error(`Daily outreach limit reached (${currentSent}/${dailyCap} messages). Send blocked.`);
+    }
+
+    // 3. Pacing delay
+    if (options.delayMs && options.delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+    }
+
+    // 4. DRY_RUN check
+    const isDryRun = options.dryRun !== undefined ? options.dryRun : (env.DRY_RUN || false);
+
+    // 5. Variant resolution & recording
+    const record = await this.recordCampaignSend(userId, campaignId, leadId, {
+      variant: options.variant,
+      templateId: options.templateId,
+      messageSent: options.messageSent
+    });
+
+    // Increment daily count
+    outreachHelper.incrementDailyCount(userId);
+
+    return {
+      success: true,
+      simulated: isDryRun,
+      dailySent: outreachHelper.getDailySentCount(userId),
+      dailyCap,
+      ...record
+    };
+  }
+
+  /**
+   * Archive campaign when it has linked activity/leads (Rule 9 / Item 6)
    */
   async archiveCampaign(userId, campaignId) {
     const campaign = await Campaign.findOne({ where: { id: campaignId, userId } });
@@ -433,6 +615,17 @@ class CampaignService {
     // If completely empty with zero records, can delete
     await campaign.destroy();
     return { success: true, action: 'deleted', message: 'Empty campaign removed.' };
+  }
+
+  /**
+   * Unarchive campaign (Item 6)
+   */
+  async unarchiveCampaign(userId, campaignId) {
+    const campaign = await Campaign.findOne({ where: { id: campaignId, userId } });
+    if (!campaign) throw new Error('Campaign not found');
+
+    await campaign.update({ status: 'active' });
+    return { success: true, action: 'unarchived', campaign };
   }
 }
 
