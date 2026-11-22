@@ -42,7 +42,7 @@ export default function Marketing() {
         api.getCampaigns()
       ]);
       setContentPosts(contentRes.posts || []);
-      setCampaigns(campaignRes.campaigns || []);
+      setCampaigns(campaignsRes.campaigns || []);
     } catch (err) {
       toast.error(err.message || 'Failed to load marketing data');
     } finally {
