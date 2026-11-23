@@ -7,12 +7,13 @@ const express = require('express');
 const { z } = require('zod');
 const { Op } = require('sequelize');
 const Note = require('../../models/Note');
+const MindmapNode = require('../../models/MindmapNode');
 const AuditLog = require('../../models/AuditLog');
 
 const router = express.Router();
 
 const noteSchema = z.object({
-  ownerType: z.enum(['lead', 'call', 'task', 'campaign', 'general', 'event']).default('lead'),
+  ownerType: z.enum(['lead', 'call', 'task', 'campaign', 'general', 'event', 'mindmap_node']).default('lead'),
   ownerId: z.string().optional().nullable(),
   title: z.string().max(255).optional().nullable(),
   body: z.string().min(1, 'Note content cannot be empty'),
@@ -98,6 +99,14 @@ router.post('/', async (req, res, next) => {
   try {
     const parsed = noteSchema.parse(req.body);
     const userId = req.userId;
+
+    // Tenancy verification for mindmap node notes
+    if (parsed.ownerType === 'mindmap_node' && parsed.ownerId) {
+      const node = await MindmapNode.findOne({ where: { id: parsed.ownerId, userId } });
+      if (!node) {
+        return res.status(403).json({ error: 'Forbidden', message: 'Target mindmap node not found or belongs to another user' });
+      }
+    }
 
     const note = await Note.create({
       userId,

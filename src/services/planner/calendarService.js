@@ -9,6 +9,8 @@ const Task = require('../../models/Task');
 const FollowUp = require('../../models/FollowUp');
 const ContentPost = require('../../models/ContentPost');
 const Lead = require('../../models/Lead');
+const MindmapNode = require('../../models/MindmapNode');
+const Mindmap = require('../../models/Mindmap');
 const logger = require('../../config/logger');
 
 class CalendarService {
@@ -30,7 +32,7 @@ class CalendarService {
     const startFrom = from ? new Date(from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const endTo = to ? new Date(to) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    const [events, tasks, followUps, posts] = await Promise.all([
+    const [events, tasks, followUps, posts, mindmapNodes] = await Promise.all([
       CalendarEvent.findAll({
         where: {
           userId,
@@ -66,6 +68,15 @@ class CalendarService {
           scheduledAt: { [Op.between]: [startFrom, endTo] }
         },
         order: [['scheduledAt', 'ASC']]
+      }),
+      MindmapNode.findAll({
+        where: {
+          userId,
+          status: { [Op.in]: ['todo', 'doing'] },
+          dueDate: { [Op.between]: [startFrom, endTo] }
+        },
+        include: [{ model: Mindmap, as: 'mindmap', attributes: ['id', 'title'] }],
+        order: [['dueDate', 'ASC']]
       })
     ]);
 
@@ -188,10 +199,40 @@ class CalendarService {
       };
     });
 
+    // 6. Format Mindmap Actions (Business Mindmap Engine)
+    const formattedMindmapNodes = (mindmapNodes || []).map((node) => {
+      const nodeDue = new Date(node.dueDate);
+      const endAt = new Date(nodeDue.getTime() + 45 * 60 * 1000); // 45 min block
+      return {
+        id: node.id,
+        rawId: node.id,
+        feedId: `mindmap_${node.id}`,
+        itemType: 'mindmap_action',
+        title: `Action: ${node.title}`,
+        startAt: node.dueDate,
+        endAt: endAt.toISOString(),
+        allDay: false,
+        type: 'mindmap_action',
+        category: 'mindmap',
+        priority: node.priority,
+        status: node.status,
+        mindmapId: node.mindmapId,
+        mindmapTitle: node.mindmap?.title || 'Goal Mindmap',
+        deepLink: `/mindmaps/${node.mindmapId}#node-${node.id}`,
+        hasConflict: false,
+        conflicts: [],
+        color: node.priority === 'now' ? '#F59E0B' : (node.priority === 'next' ? '#38BDF8' : '#94A3B8')
+      };
+    });
+
     // Merge and sort chronologically
-    const allItems = [...formattedEvents, ...formattedTasks, ...formattedFollowUps, ...formattedPosts].sort(
-      (a, b) => new Date(a.startAt) - new Date(b.startAt)
-    );
+    const allItems = [
+      ...formattedEvents,
+      ...formattedTasks,
+      ...formattedFollowUps,
+      ...formattedPosts,
+      ...formattedMindmapNodes
+    ].sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
 
     return {
       success: true,

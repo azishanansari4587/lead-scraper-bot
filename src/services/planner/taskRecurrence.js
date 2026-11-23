@@ -92,6 +92,7 @@ async function handleTaskCompletion(task) {
     relatedLeadId: task.relatedLeadId,
     recurrenceRule: task.recurrenceRule,
     recurrenceParentId: parentId,
+    relatedMindmapNodeId: null, // Amendment 4: Recurring tasks must NOT copy node link
     sortOrder: task.sortOrder
   });
 

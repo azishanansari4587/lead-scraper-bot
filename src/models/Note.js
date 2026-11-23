@@ -13,7 +13,7 @@ const Note = sequelize.define('Note', {
     index: true
   },
   ownerType: {
-    type: DataTypes.ENUM('lead', 'call', 'task', 'campaign', 'general', 'event'),
+    type: DataTypes.ENUM('lead', 'call', 'task', 'campaign', 'general', 'event', 'mindmap_node'),
     defaultValue: 'lead'
   },
   ownerId: {

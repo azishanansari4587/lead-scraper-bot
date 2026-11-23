@@ -6,8 +6,18 @@
 
 const express = require('express');
 const { Op } = require('sequelize');
+const sequelize = require('../../config/database');
 const Lead = require('../../models/Lead');
 const AuditLog = require('../../models/AuditLog');
+const Call = require('../../models/Call');
+const FollowUp = require('../../models/FollowUp');
+const OutreachLog = require('../../models/OutreachLog');
+const BulkSendLog = require('../../models/BulkSendLog');
+const Note = require('../../models/Note');
+const Task = require('../../models/Task');
+const CalendarEvent = require('../../models/CalendarEvent');
+const CampaignLead = require('../../models/CampaignLead');
+const MindmapNode = require('../../models/MindmapNode');
 const { calculateLeadScore } = require('../../services/scoring');
 const { generateDedupeKey, normalizeDomain, normalizePhone } = require('../../services/dedupe');
 const { classifyBuyer } = require('../../services/classification/buyerClassifier');
@@ -412,26 +422,114 @@ router.patch('/:id', async (req, res, next) => {
 });
 
 /**
+ * Safely deletes leads and handles all child references and foreign key constraints
+ * across SQLite and MySQL in an isolated transaction.
+ */
+async function safelyDeleteLeads(leadIds, userId) {
+  if (!Array.isArray(leadIds) || leadIds.length === 0) return 0;
+
+  return await sequelize.transaction(async (t) => {
+    // 1. Verify and get valid lead IDs belonging to the tenant user
+    const leads = await Lead.findAll({
+      where: { id: leadIds, userId },
+      attributes: ['id'],
+      transaction: t
+    });
+
+    if (leads.length === 0) return 0;
+    const validIds = leads.map((l) => l.id);
+    const validIdStrings = validIds.map(String);
+
+    // 2. Cascade delete direct child records belonging to this user
+    await CampaignLead.destroy({
+      where: { leadId: validIds, userId },
+      transaction: t
+    });
+
+    await Call.destroy({
+      where: { leadId: validIds, userId },
+      transaction: t
+    });
+
+    await FollowUp.destroy({
+      where: { leadId: validIds, userId },
+      transaction: t
+    });
+
+    await OutreachLog.destroy({
+      where: { leadId: validIds, userId },
+      transaction: t
+    });
+
+    // 3. Clear lead reference on BulkSendLogs
+    await BulkSendLog.update(
+      { leadId: null },
+      { where: { leadId: validIds }, transaction: t }
+    );
+
+    // 4. Delete polymorphic notes attached to these leads
+    await Note.destroy({
+      where: {
+        ownerType: 'lead',
+        ownerId: validIdStrings,
+        userId
+      },
+      transaction: t
+    });
+
+    // 5. Nullify foreign keys on linked entities (preserve tasks, meetings, mindmaps)
+    await Task.update(
+      { relatedLeadId: null },
+      { where: { relatedLeadId: validIds, userId }, transaction: t }
+    );
+
+    await CalendarEvent.update(
+      { relatedLeadId: null },
+      { where: { relatedLeadId: validIds, userId }, transaction: t }
+    );
+
+    await MindmapNode.update(
+      { linkedLeadId: null },
+      { where: { linkedLeadId: validIds }, transaction: t }
+    );
+
+    // 6. Delete the leads themselves
+    const deletedCount = await Lead.destroy({
+      where: { id: validIds, userId },
+      transaction: t
+    });
+
+    // 7. Audit log
+    await AuditLog.create(
+      {
+        userId,
+        action: validIds.length === 1 ? 'lead_deleted' : 'leads_bulk_deleted',
+        entityType: 'Lead',
+        entityId: validIds.join(','),
+        details: { count: deletedCount, leadIds: validIds }
+      },
+      { transaction: t }
+    );
+
+    return deletedCount;
+  });
+}
+
+/**
  * DELETE /api/leads/:id - Delete single lead
  */
 router.delete('/:id', async (req, res, next) => {
   try {
-    const lead = await Lead.findOne({
-      where: { id: req.params.id, userId: req.userId }
-    });
-
-    if (!lead) {
-      return res.status(404).json({ error: 'NotFound', message: 'Lead not found' });
+    const leadId = parseInt(req.params.id, 10);
+    if (isNaN(leadId) || leadId <= 0) {
+      return res.status(400).json({ error: 'ValidationError', message: 'Valid lead ID required' });
     }
 
-    await lead.destroy();
+    const deletedCount = await safelyDeleteLeads([leadId], req.userId);
 
-    await AuditLog.create({
-      userId: req.userId,
-      action: 'lead_deleted',
-      entityType: 'Lead',
-      entityId: String(req.params.id)
-    });
+    if (deletedCount === 0) {
+      return res.status(404).json({ error: 'NotFound', message: 'Lead not found' });
+    }
 
     res.json({ success: true, message: 'Lead deleted successfully' });
   } catch (err) {
@@ -449,12 +547,12 @@ router.post('/bulk-delete', async (req, res, next) => {
       return res.status(400).json({ error: 'ValidationError', message: 'ids array required' });
     }
 
-    const deletedCount = await Lead.destroy({
-      where: {
-        id: ids,
-        userId: req.userId
-      }
-    });
+    const numericIds = ids.map((id) => parseInt(id, 10)).filter((id) => !isNaN(id) && id > 0);
+    if (numericIds.length === 0) {
+      return res.status(400).json({ error: 'ValidationError', message: 'Valid lead IDs required' });
+    }
+
+    const deletedCount = await safelyDeleteLeads(numericIds, req.userId);
 
     res.json({ success: true, deletedCount });
   } catch (err) {

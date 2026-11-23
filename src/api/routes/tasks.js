@@ -8,6 +8,7 @@ const { z } = require('zod');
 const { Op } = require('sequelize');
 const Task = require('../../models/Task');
 const Lead = require('../../models/Lead');
+const MindmapNode = require('../../models/MindmapNode');
 const AuditLog = require('../../models/AuditLog');
 const logger = require('../../config/logger');
 const { handleTaskCompletion } = require('../../services/planner/taskRecurrence');
@@ -23,6 +24,7 @@ const taskSchema = z.object({
   status: z.enum(['todo', 'doing', 'done', 'cancelled']).default('todo'),
   isMIT: z.boolean().default(false),
   relatedLeadId: z.number().int().positive().optional().nullable(),
+  relatedMindmapNodeId: z.number().int().positive().optional().nullable(),
   recurrenceRule: z.enum(['none', 'daily', 'weekly', 'monthly', 'weekdays']).default('none'),
   sortOrder: z.number().int().default(0)
 });
@@ -115,6 +117,13 @@ router.post('/', async (req, res, next) => {
     const userId = req.userId;
     const parsed = taskSchema.parse(req.body);
 
+    if (parsed.relatedMindmapNodeId) {
+      const node = await MindmapNode.findOne({ where: { id: parsed.relatedMindmapNodeId, userId } });
+      if (!node) {
+        return res.status(403).json({ error: 'Forbidden', message: 'Target mindmap node not found or belongs to another user' });
+      }
+    }
+
     const task = await Task.create({
       userId,
       ...parsed,
@@ -154,6 +163,13 @@ router.patch('/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'NotFound', message: 'Task not found' });
     }
 
+    if (parsed.relatedMindmapNodeId !== undefined && parsed.relatedMindmapNodeId !== null) {
+      const node = await MindmapNode.findOne({ where: { id: parsed.relatedMindmapNodeId, userId } });
+      if (!node) {
+        return res.status(403).json({ error: 'Forbidden', message: 'Target mindmap node not found or belongs to another user' });
+      }
+    }
+
     const previousStatus = task.status;
     const updates = { ...parsed };
 
@@ -169,6 +185,16 @@ router.patch('/:id', async (req, res, next) => {
     }
 
     await task.update(updates);
+
+    // Synchronize to linked mindmap node (Amendment 4)
+    const effectiveNodeId = task.relatedMindmapNodeId;
+    if (effectiveNodeId) {
+      if (parsed.status === 'done' && previousStatus !== 'done') {
+        await MindmapNode.update({ status: 'done' }, { where: { id: effectiveNodeId, userId } }).catch(() => {});
+      } else if (previousStatus === 'done' && parsed.status === 'todo') {
+        await MindmapNode.update({ status: 'todo' }, { where: { id: effectiveNodeId, userId } }).catch(() => {});
+      }
+    }
 
     // If task was marked done and has a recurrence rule, spawn next occurrence
     let nextOccurrence = null;
@@ -210,6 +236,10 @@ router.delete('/:id', async (req, res, next) => {
     const task = await Task.findOne({ where: { id: taskId, userId } });
     if (!task) {
       return res.status(404).json({ error: 'NotFound', message: 'Task not found' });
+    }
+
+    if (task.relatedMindmapNodeId) {
+      await MindmapNode.update({ linkedTaskId: null }, { where: { id: task.relatedMindmapNodeId, userId } }).catch(() => {});
     }
 
     await task.destroy();

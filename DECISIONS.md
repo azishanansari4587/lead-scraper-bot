@@ -228,3 +228,62 @@ This document records all significant technical and design choices made during t
 - **Remote Database Safety Guard (`src/config/database.js`):**
   - Refuses to connect or run migrations/scripts against non-local hosts (`host != 'localhost'` and `host != '127.0.0.1'`) unless `ALLOW_REMOTE_DB=true` is explicitly set in environment.
   - In all test runs (`NODE_ENV === 'test'`), dialect is strictly forced to `sqlite` regardless of environment variables.
+
+## 20. Mindmap Module Architecture & Security Safeguards (Phase D)
+- **Strict Tenancy on Foreign Entity Links (`mindmapService.js`, `api/routes/mindmaps.js`):**
+  - When creating or updating a node with `linkedTaskId`, `linkedLeadId`, or `linkedCampaignId`, the service verifies the linked entity exists and has `userId === req.userId`. If a user attempts to link an entity owned by another user or an invalid ID, an explicit 400 error is thrown.
+  - Similarly, `api/routes/notes.js` verifies that notes with `ownerType: 'mindmap_node'` have an `ownerId` corresponding to a node owned by the requesting user.
+- **Import Hardening & Sanitization (`mindmapService.js`):**
+  - Incoming import files are validated against a 2MB payload ceiling.
+  - Tree traversal verifies total node count $\le 500$ and maximum tree depth $\le 6$. Any violation rejects the import with HTTP 400.
+  - All existing client IDs and foreign links (`linkedTaskId`, `linkedLeadId`, `linkedCampaignId`) are dropped and regenerated. `userId` is strictly bound to `req.userId`.
+  - All user-supplied text fields (`title`, `why`, `how`, `kpiTarget`, `kpiCurrent`) are sanitized using regex HTML tag stripping to neutralize script injection.
+- **Dynamic MySQL ENUM Preservation (`migrations/007_mindmap_module.js`):**
+  - For `Notes.ownerType`, the migration dynamically queries `information_schema.COLUMNS` on MySQL to retrieve the exact current `COLUMN_TYPE`, `IS_NULLABLE`, `COLUMN_DEFAULT`, `CHARACTER_SET`, and `COLLATION`.
+  - It safely appends `'mindmap_node'` to the existing ENUM definition while preserving all existing values (`lead`, `task`, `general`, `call`, `campaign`).
+  - Completely idempotent across both SQLite (where ENUM is stored as `TEXT`) and MySQL.
+- **Single Source of Truth for Linked Tasks (`Task.relatedMindmapNodeId`):**
+  - `Task.relatedMindmapNodeId` acts as the single source of truth.
+  - Node `linkedTaskId` is maintained in sync; when a task completes, the linked node's status moves to `done`. When a task reopens, the node reverts to `todo`.
+  - Spawning subsequent occurrences for recurring tasks (`src/services/planner/taskRecurrence.js`) explicitly sets `relatedMindmapNodeId: null` so future recurrences do not inherit the one-off mindmap node anchor.
+- **Collision-Free Radial & Horizontal Layout Engines (`mindmapService.js`):**
+  - Radial layout dynamically allocates angular wedges proportional to subtree leaf counts, computing radial rings ($R = \text{depth} \times 220\text{px}$) with minimum angular spacing to prevent bounding box collisions even with 300+ nodes.
+  - Horizontal tree layout calculates recursive subtree vertical bounds, separating sibling branches by $60\text{px}$ vertical margins and $260\text{px}$ horizontal rank offsets.
+- **Color Semantics & Overdue Rules:**
+  - Red (`#EF4444`) is strictly reserved for Overdue actions past their timezone-adjusted deadline (`Asia/Dubai` default).
+  - Priority colors use non-red status tokens: Gold (`#F59E0B`) for `now`, Sky (`#38BDF8`) for `next`, and Slate (`#94A3B8`) for `later`.
+- **Preservation of Static Growth Mindmap:**
+  - The static `/growth-mindmap` and `/mindmap` routes are strictly preserved and continue rendering `GrowthMindmap.jsx`.
+  - The dynamic Goal Mindmap Hub is accessible via `/mindmaps` and the canvas editor via `/mindmaps/:id`.
+
+## 21. Mindset Gate Architecture & Principle Recitation Engine (Feature: Mindset Gate)
+- **Founder-Authored Mantras (Zero Auto-Generated or Placeholder Content):**
+  - The Mindset Gate locks the dashboard until the founder recites their 5 core business mantras.
+  - The platform provides zero pre-written filler advice or fake metrics; the 5 quotes belong entirely to the founder.
+  - Exactly 5 active quotes are required. If fewer than 5 exist, the gate enters setup mode requiring the founder to define all 5 before dashboard access is permitted.
+- **Audio Privacy Guarantee (Amendment 1):**
+  - Knotiq Command Center **never records, streams, uploads, or stores audio** on any server or database.
+  - Speech recognition operates entirely through the browser engine's Web Speech API (`webkitSpeechRecognition` / `SpeechRecognition`), which processes audio in accordance with the user's browser vendor privacy policy (e.g., Google Chrome).
+  - This guarantee is prominently displayed on the gate screen, settings panel, and documentation.
+- **Single Source Speech Matching Engine (`src/utils/speechMatcher.js`, Amendment 2 & 9):**
+  - A single pure matcher module is shared between frontend components (via Vite resolve alias `@utils`) and backend test suites (Vitest).
+  - Normalization pipeline: Unicode NFKC normalization, lowercasing, and removal of ASCII/Unicode punctuation and Devanagari dandas (`।`, `॥`).
+  - Fuzzy alignment: In-order word alignment with word-level Levenshtein distance tolerance ($\le 1$ edit for short words, $\le 2$ for longer words).
+  - Token length ceiling: Discards transcripts longer than $3\times$ the target word count to prevent rambling bypasses.
+  - Final word requirement: The final target token(s) must be matched in order, ensuring the founder speaks through the complete principle rather than stopping prematurely.
+- **Idempotent Gate Session Tracking (`MindsetGateLog`, Amendment 3):**
+  - `POST /api/gate/start` is completely idempotent: reuses any active in-progress log for the user's effective local day.
+  - Effective date computation accounts for user timezone (`Asia/Dubai` default) and custom `gateResetHour` (e.g., late night hours before reset hour attribute to the prior session day).
+  - `POST /api/gate/complete` verifies ownership, records method (`voice`, `typed_fallback`, or `mixed`), logs `quotesTyped`, and rejects attempts to double-complete a session.
+- **Anti-Cheat Typed Fallback (Amendment 4):**
+  - Activates after 3 failed voice attempts, or immediately upon microphone denial, unsupported browser, or insecure context (`!isSecureContext`).
+  - Strictly blocks clipboard pasting (`onPaste`), drag-and-drop (`onDrop`), and browser autofill (`autoComplete="off"`, `data-lpignore="true"`). The founder must physically type out each mantra to internalize it.
+- **Per-User Session Security (Amendment 6):**
+  - `sessionStorage` token is strictly keyed by authenticated user ID (`knotiq_mindset_gate_unlocked_${userId}`).
+  - Each new tab or window session triggers the gate (in `every_session` mode), and signing out clears session tokens.
+- **Next-Day Strictness Relaxation Protection (Amendment 12):**
+  - To prevent cheating during moments of weak resolve, relaxing the gate (switching from `every_session` to `off` / `once_daily`, or lowering the match threshold) is automatically postponed to the next local calendar day (`pendingGateMode`, `pendingEffectiveDate`).
+  - Increasing strictness takes effect immediately. Pending settings automatically reconcile when the effective date arrives.
+- **Ritual & Streaks Integration:**
+  - Mindset gate streaks are integrated into `plannerService.calculateStreaks` and `GET /api/today/summary`.
+  - Evening reviews report `{ gateCompleted: true, gateMethod }` as part of the daily ritual scorecard.

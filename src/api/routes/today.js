@@ -25,6 +25,8 @@ const Task = require('../../models/Task');
 const CalendarEvent = require('../../models/CalendarEvent');
 const DailyPlan = require('../../models/DailyPlan');
 const DailyReview = require('../../models/DailyReview');
+const MindmapNode = require('../../models/MindmapNode');
+const Mindmap = require('../../models/Mindmap');
 const { calculateStreaks } = require('../../services/planner/plannerService');
 
 const router = express.Router();
@@ -46,6 +48,10 @@ router.get('/summary', async (req, res, next) => {
     const endOfDay = new Date();
     endOfDay.setUTCHours(23, 59, 59, 999);
 
+    const endOfWeek = new Date();
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+    endOfWeek.setUTCHours(23, 59, 59, 999);
+
     // Parallel optimized query executions
     const [
       settings,
@@ -59,7 +65,8 @@ router.get('/summary', async (req, res, next) => {
       todayReview,
       tasksDueToday,
       calendarEventsToday,
-      streaks
+      streaks,
+      mindmapActionsDueThisWeek
     ] = await Promise.all([
       // 1. User settings
       UserSettings.findOne({ where: { userId } }).then((s) => s || {
@@ -197,7 +204,30 @@ router.get('/summary', async (req, res, next) => {
       }),
 
       // 12. Streaks
-      calculateStreaks(userId).catch(() => ({ reviewStreak: 0, targetStreak: 0 }))
+      calculateStreaks(userId).catch(() => ({ reviewStreak: 0, targetStreak: 0 })),
+
+      // 13. Mindmap actions due this week (Amendment 5/10)
+      MindmapNode.findAll({
+        where: {
+          userId,
+          status: { [Op.in]: ['todo', 'doing'] },
+          dueDate: { [Op.between]: [startOfDay, endOfWeek] }
+        },
+        include: [{ model: Mindmap, as: 'mindmap', attributes: ['id', 'title'] }],
+        order: [['dueDate', 'ASC']],
+        limit: 10
+      }).then((nodes) =>
+        nodes.map((n) => ({
+          id: n.id,
+          title: n.title,
+          priority: n.priority,
+          status: n.status,
+          dueDate: n.dueDate,
+          mindmapId: n.mindmapId,
+          mindmapTitle: n.mindmap?.title || 'Mindmap',
+          deepLink: `/mindmaps/${n.mindmapId}#node-${n.id}`
+        }))
+      )
     ]);
 
     // Enrich todayPlan with task completion states
@@ -288,7 +318,7 @@ router.get('/summary', async (req, res, next) => {
         whatsapps: { logged: whatsappsSentToday, target: settings.dailyWhatsappTarget || 30 },
         calls: { logged: callsLoggedToday, target: settings.dailyCallTarget || 20 }
       },
-      streaks: streaks || { reviewStreak: 0, targetStreak: 0 },
+      streaks: streaks || { reviewStreak: 0, targetStreak: 0, gateStreak: 0, isGateCompletedToday: false },
       rituals: {
         needsMorningPlan,
         needsEveningReview,
@@ -300,6 +330,7 @@ router.get('/summary', async (req, res, next) => {
       tasksDueToday,
       overdueFollowUps,
       todayFollowUps,
+      mindmapActionsDueThisWeek,
       priorities: priorities.slice(0, 3)
     });
   } catch (err) {

@@ -12,3 +12,4 @@ export { default as EmptyState } from './EmptyState';
 export { Skeleton, SkeletonRow, SkeletonCard } from './Skeleton';
 export { default as DataTable } from './DataTable';
 export { default as Pagination } from './Pagination';
+export { default as ErrorBoundary } from './ErrorBoundary';

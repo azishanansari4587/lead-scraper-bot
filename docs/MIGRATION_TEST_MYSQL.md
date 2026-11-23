@@ -1,6 +1,6 @@
 # Local MySQL Migration & Verification Guide
 
-This document details how to test migrations `003` to `006` against a **LOCAL MySQL 8.0** instance (Docker or local installation) before any production deployment.
+This document details how to test migrations `003` to `008` against a **LOCAL MySQL 8.0** instance (Docker or local installation) before any production deployment.
 
 > **CRITICAL SAFETY DIRECTIVE:**
 > **Never** execute test scripts or development migrations against remote database hosts. The codebase enforces this automatically: connections to non-local MySQL hosts (`DB_HOST` $\ne$ `127.0.0.1` / `localhost`) are refused unless `ALLOW_REMOTE_DB=true` is explicitly provided.
@@ -43,12 +43,15 @@ The project provides an automated local verification script: [src/scripts/testLo
 
 This script:
 1. Verifies that the target host is strictly `127.0.0.1` or `localhost`.
-2. Applies migrations `001` through `006` sequentially.
-3. Inspects `information_schema.COLUMNS` to verify that `Leads.status` ENUM contains all 10 statuses:
-   - `new`, `contacted`, `replied`, `sample_sent`, `quotation`, `negotiation`, `won`, `lost`, `repeat_client`, `not_interested`.
-4. Executes live `INSERT` queries for each Phase A/C status (`sample_sent`, `quotation`, `negotiation`, `repeat_client`) to prove MySQL does not reject them with data truncation.
+2. Applies migrations `001` through `007` sequentially.
+3. Inspects `information_schema.COLUMNS` to verify:
+   - `Leads.status` ENUM contains all 10 statuses.
+   - `Notes.ownerType` ENUM contains `'mindmap_node'`.
+   - `Mindmaps` and `MindmapNodes` tables exist with correct keys and indexes.
+4. Executes live `INSERT` queries for each Phase A/C status and `mindmap_node` Note.
 5. Executes live `INSERT` on `BulkSendLogs` with `status: 'simulated'` to prove simulation logs are accepted without error.
-6. Automatically cleans up test records.
+6. Executes live `INSERT` on `MindsetQuotes` and `MindsetGateLogs` (Migration 008) to verify Mindset Gate table creation and field types.
+7. Automatically cleans up test records.
 
 Run the script in PowerShell:
 

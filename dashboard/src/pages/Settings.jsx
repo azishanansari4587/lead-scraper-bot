@@ -10,9 +10,15 @@ import {
   MapPin,
   Key,
   CheckCircle2,
-  Server
+  Server,
+  ArrowUp,
+  ArrowDown,
+  Volume2,
+  Mic,
+  Lock
 } from 'lucide-react';
 import { api } from '../api';
+import MindsetGateScreen from '../components/MindsetGateScreen';
 import {
   Button,
   Field,
@@ -56,6 +62,27 @@ export default function Settings() {
   });
   const [savingUserSettings, setSavingUserSettings] = useState(false);
 
+  // Mindset Gate & Founder Mantras state
+  const [gateStatus, setGateStatus] = useState(null);
+  const [gateQuotes, setGateQuotes] = useState([
+    { text: '', author: '', language: 'en-IN' },
+    { text: '', author: '', language: 'en-IN' },
+    { text: '', author: '', language: 'en-IN' },
+    { text: '', author: '', language: 'en-IN' },
+    { text: '', author: '', language: 'en-IN' }
+  ]);
+  const [gateConfig, setGateConfig] = useState({
+    gateMode: 'every_session',
+    gateLanguage: 'en-IN',
+    gateMatchThreshold: 0.8,
+    gateResetHour: 0,
+    gateFallbackAfterAttempts: 3,
+    gateStrictnessEffectiveNextDay: true
+  });
+  const [savingGateConfig, setSavingGateConfig] = useState(false);
+  const [savingGateQuotes, setSavingGateQuotes] = useState(false);
+  const [practiceGateOpen, setPracticeGateOpen] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -63,13 +90,33 @@ export default function Settings() {
   async function loadData() {
     try {
       setLoading(true);
-      const [settingsRes, optoutsRes, userSettingsRes] = await Promise.all([
+      const [settingsRes, optoutsRes, userSettingsRes, gateStatusRes, gateQuotesRes] = await Promise.all([
         api.getSettings().catch(() => ({ settings: {} })),
         api.getOptOuts().catch(() => ({ optouts: [] })),
-        api.getUserSettings().catch(() => ({ settings: {} }))
+        api.getUserSettings().catch(() => ({ settings: {} })),
+        api.getGateStatus().catch(() => null),
+        api.getGateQuotes().catch(() => ({ quotes: [] }))
       ]);
       setSettings(settingsRes.settings);
       setOptouts(optoutsRes.optouts || []);
+      if (gateStatusRes) {
+        setGateStatus(gateStatusRes);
+        setGateConfig({
+          gateMode: gateStatusRes.mode || 'every_session',
+          gateLanguage: gateStatusRes.gateLanguage || 'en-IN',
+          gateMatchThreshold: gateStatusRes.threshold ?? 0.8,
+          gateResetHour: gateStatusRes.resetHour ?? 0,
+          gateFallbackAfterAttempts: gateStatusRes.fallbackAfterAttempts ?? 3,
+          gateStrictnessEffectiveNextDay: gateStatusRes.strictnessEffectiveNextDay ?? true
+        });
+      }
+      const quotesList = gateQuotesRes?.quotes || [];
+      const normalizedQuotes = [0, 1, 2, 3, 4].map((i) => ({
+        text: quotesList[i]?.text || '',
+        author: quotesList[i]?.author || '',
+        language: quotesList[i]?.language || gateStatusRes?.gateLanguage || 'en-IN'
+      }));
+      setGateQuotes(normalizedQuotes);
       if (userSettingsRes.settings) {
         setUserSettings({
           timezone: userSettingsRes.settings.timezone || 'Asia/Dubai',
@@ -112,6 +159,68 @@ export default function Settings() {
     } finally {
       setSavingUserSettings(false);
     }
+  }
+
+  async function handleSaveGateConfig(e) {
+    e.preventDefault();
+    setSavingGateConfig(true);
+    try {
+      const res = await api.updateGateSettings(gateConfig);
+      toast.success(
+        res.settings?.pendingGateMode
+          ? `Settings updated! Relaxation to ${res.settings.pendingGateMode} scheduled for tomorrow (${res.settings.pendingEffectiveDate}).`
+          : 'Mindset Gate configuration updated!'
+      );
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update gate settings');
+    } finally {
+      setSavingGateConfig(false);
+    }
+  }
+
+  async function handleSaveGateQuotes(e) {
+    e.preventDefault();
+    for (let i = 0; i < 5; i++) {
+      if (!gateQuotes[i]?.text?.trim()) {
+        toast.error(`Mantra #${i + 1} cannot be empty. All 5 are required.`);
+        return;
+      }
+    }
+    setSavingGateQuotes(true);
+    try {
+      await api.replaceGateQuotes(
+        gateQuotes.slice(0, 5).map((q, idx) => ({
+          text: q.text.trim(),
+          author: q.author ? q.author.trim() : null,
+          language: q.language || gateConfig.gateLanguage || 'en-IN',
+          sortOrder: idx,
+          isActive: true
+        }))
+      );
+      toast.success('All 5 founder mantras saved successfully!');
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to save mantras');
+    } finally {
+      setSavingGateQuotes(false);
+    }
+  }
+
+  function moveQuote(index, direction) {
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= gateQuotes.length) return;
+    const nextQuotes = [...gateQuotes];
+    const temp = nextQuotes[index];
+    nextQuotes[index] = nextQuotes[targetIdx];
+    nextQuotes[targetIdx] = temp;
+    setGateQuotes(nextQuotes);
+  }
+
+  function updateQuoteField(index, field, value) {
+    const nextQuotes = [...gateQuotes];
+    nextQuotes[index] = { ...nextQuotes[index], [field]: value };
+    setGateQuotes(nextQuotes);
   }
 
   async function handleSaveApiKey(e) {
@@ -374,6 +483,330 @@ export default function Settings() {
         </Card>
       </div>
 
+      {/* Mindset Gate & 5 Founder Mantras */}
+      <Card
+        title="Mindset Gate & 5 Founder Mantras"
+        icon={Sparkles}
+        subtitle="Mandatory daily principle recitation that locks your workspace until you speak your core mantras out loud."
+      >
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 440px), 1fr))',
+          gap: '28px',
+          alignItems: 'start',
+          marginBottom: '20px'
+        }}>
+          {/* Gate Policy & Configuration */}
+          <div style={{
+            background: 'var(--bg-app)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+              <div>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Gate Lock Policy & Enforcement
+                </div>
+                <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Configure lockout frequency, reset cycle, and speech matching threshold.
+                </div>
+              </div>
+              <Badge variant={gateConfig.gateMode === 'off' ? 'neutral' : gateConfig.gateMode === 'every_session' ? 'warning' : 'primary'}>
+                {gateConfig.gateMode === 'off' ? 'Disabled' : gateConfig.gateMode === 'every_session' ? 'Strict Lock' : 'Daily Lock'}
+              </Badge>
+            </div>
+
+            <form onSubmit={handleSaveGateConfig} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {gateStatus?.pendingGateMode && (
+                <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.35)', color: '#F59E0B', fontSize: 'var(--font-xs)', lineHeight: '1.45' }}>
+                  <strong>Pending Relaxation:</strong> Gate mode change to <code>{gateStatus.pendingGateMode}</code> will take effect on <strong>{gateStatus.pendingEffectiveDate}</strong> to ensure today's discipline is maintained.
+                </div>
+              )}
+
+              <Field label="Gate Frequency & Enforcement Mode" id="gate-mode" hint="Choose when the full-screen speech gate appears">
+                <Select
+                  id="gate-mode"
+                  value={gateConfig.gateMode}
+                  onChange={(e) => setGateConfig({ ...gateConfig, gateMode: e.target.value })}
+                >
+                  <option value="every_session">Every Session (Strict: recite on every new browser session)</option>
+                  <option value="once_daily">Once Daily (Recite once per effective local day)</option>
+                  <option value="off">Off (Disabled: direct dashboard access)</option>
+                </Select>
+              </Field>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '14px' }}>
+                <Field label="Default Voice Language" id="gate-language">
+                  <Select
+                    id="gate-language"
+                    value={gateConfig.gateLanguage}
+                    onChange={(e) => setGateConfig({ ...gateConfig, gateLanguage: e.target.value })}
+                  >
+                    <option value="en-IN">English (India) — en-IN</option>
+                    <option value="en-US">English (US) — en-US</option>
+                    <option value="en-GB">English (UK) — en-GB</option>
+                    <option value="hi-IN">Hindi (India) — hi-IN</option>
+                  </Select>
+                </Field>
+
+                <Field label="Matching Strictness" id="gate-threshold">
+                  <Select
+                    id="gate-threshold"
+                    value={gateConfig.gateMatchThreshold}
+                    onChange={(e) => setGateConfig({ ...gateConfig, gateMatchThreshold: parseFloat(e.target.value) })}
+                  >
+                    <option value="0.7">Forgiving (70% coverage)</option>
+                    <option value="0.8">Standard (80% coverage + final word)</option>
+                    <option value="0.9">Strict (90% coverage + final word)</option>
+                  </Select>
+                </Field>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '14px' }}>
+                <Field label="Daily Reset Hour" id="gate-reset-hour">
+                  <Select
+                    id="gate-reset-hour"
+                    value={gateConfig.gateResetHour}
+                    onChange={(e) => setGateConfig({ ...gateConfig, gateResetHour: parseInt(e.target.value, 10) })}
+                  >
+                    <option value="0">Midnight (00:00 GST)</option>
+                    <option value="3">03:00 AM</option>
+                    <option value="4">04:00 AM (Early Founder)</option>
+                    <option value="5">05:00 AM (Dawn Routine)</option>
+                  </Select>
+                </Field>
+
+                <Field label="Typed Fallback Trigger" id="gate-fallback-attempts">
+                  <Select
+                    id="gate-fallback-attempts"
+                    value={gateConfig.gateFallbackAfterAttempts}
+                    onChange={(e) => setGateConfig({ ...gateConfig, gateFallbackAfterAttempts: parseInt(e.target.value, 10) })}
+                  >
+                    <option value="2">After 2 voice attempts</option>
+                    <option value="3">After 3 voice attempts (Default)</option>
+                    <option value="5">After 5 voice attempts</option>
+                  </Select>
+                </Field>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-subtle)'
+              }}>
+                <input
+                  type="checkbox"
+                  id="gate-strictness-next-day"
+                  checked={gateConfig.gateStrictnessEffectiveNextDay}
+                  onChange={(e) => setGateConfig({ ...gateConfig, gateStrictnessEffectiveNextDay: e.target.checked })}
+                  style={{ accentColor: 'var(--gold-primary)', cursor: 'pointer', marginTop: '3px' }}
+                />
+                <label htmlFor="gate-strictness-next-day" style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', cursor: 'pointer', lineHeight: '1.4' }}>
+                  <strong>Next-Day Relaxation Guard:</strong> Postpone relaxing settings (turning off the gate or lowering strictness) until the next calendar day to prevent midday friction bypasses.
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '6px' }}>
+                <Button type="submit" variant="primary" size="md" loading={savingGateConfig}>
+                  Save Gate Policy
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  icon={Mic}
+                  onClick={() => setPracticeGateOpen(true)}
+                >
+                  Test the Gate (Practice)
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          {/* 5 Founder Mantras Manager */}
+          <div style={{
+            background: 'var(--bg-app)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <form onSubmit={handleSaveGateQuotes} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+                <div>
+                  <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Your 5 Personalized Mantras
+                  </div>
+                  <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    You must recite all 5 in order each morning to access the Command Center.
+                  </div>
+                </div>
+                <Badge variant={gateQuotes.filter((q) => q.text?.trim()).length === 5 ? 'success' : 'warning'}>
+                  {gateQuotes.filter((q) => q.text?.trim()).length} / 5 Active
+                </Badge>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {gateQuotes.slice(0, 5).map((q, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '14px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-surface)',
+                      border: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      boxShadow: 'var(--shadow-sm)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: 'var(--gold-primary)',
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          border: '1px solid rgba(245, 158, 11, 0.25)',
+                          padding: '2px 8px',
+                          borderRadius: '4px'
+                        }}>
+                          Mantra #{idx + 1}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontVariantNumeric: 'tabular-nums' }}>
+                          {(q.text || '').length}/300 chars
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <select
+                          value={q.language || gateConfig.gateLanguage || 'en-IN'}
+                          onChange={(e) => updateQuoteField(idx, 'language', e.target.value)}
+                          style={{
+                            fontSize: '11px',
+                            padding: '3px 8px',
+                            background: 'var(--bg-app)',
+                            color: 'var(--text-main)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: '4px'
+                          }}
+                          aria-label={`Mantra #${idx + 1} language`}
+                        >
+                          <option value="en-IN">English (India)</option>
+                          <option value="en-US">English (US)</option>
+                          <option value="en-GB">English (UK)</option>
+                          <option value="hi-IN">Hindi (India)</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => moveQuote(idx, -1)}
+                          style={{
+                            background: 'var(--bg-app)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: '4px',
+                            color: idx === 0 ? 'var(--text-dim)' : 'var(--text-main)',
+                            cursor: idx === 0 ? 'default' : 'pointer',
+                            padding: '4px 6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            opacity: idx === 0 ? 0.4 : 1
+                          }}
+                          title="Move Mantra Up"
+                        >
+                          <ArrowUp size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === 4}
+                          onClick={() => moveQuote(idx, 1)}
+                          style={{
+                            background: 'var(--bg-app)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: '4px',
+                            color: idx === 4 ? 'var(--text-dim)' : 'var(--text-main)',
+                            cursor: idx === 4 ? 'default' : 'pointer',
+                            padding: '4px 6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            opacity: idx === 4 ? 0.4 : 1
+                          }}
+                          title="Move Mantra Down"
+                        >
+                          <ArrowDown size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <textarea
+                      className="input"
+                      placeholder={`Enter core founder mantra #${idx + 1} (e.g. Every knot tied in Bhadohi represents generations of heritage)...`}
+                      value={q.text || ''}
+                      maxLength={300}
+                      required
+                      rows={2}
+                      onChange={(e) => updateQuoteField(idx, 'text', e.target.value)}
+                      style={{
+                        fontSize: '13px',
+                        lineHeight: '1.45',
+                        padding: '10px 12px',
+                        resize: 'vertical',
+                        minHeight: '56px',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        className="input"
+                        placeholder="Author or category (e.g. Founder Ritual, Commercial Discipline, Brand Positioning)"
+                        value={q.author || ''}
+                        onChange={(e) => updateQuoteField(idx, 'author', e.target.value)}
+                        style={{ fontSize: '11px', padding: '6px 10px', color: 'var(--text-muted)' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <Button type="submit" variant="primary" size="md" loading={savingGateQuotes}>
+                  Save All 5 Mantras
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: 'var(--font-xs)',
+          color: 'var(--text-dim)',
+          borderTop: '1px solid var(--border-subtle)',
+          paddingTop: '14px',
+          lineHeight: '1.5'
+        }}>
+          <Shield size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />
+          <span>
+            <strong>100% Privacy & Audio Safety:</strong> Knotiq never records, uploads, or stores your voice. Web Speech API audio processing runs directly and privately inside your browser runtime.
+          </span>
+        </div>
+      </Card>
+
       {/* Suppression & Opt-Out List */}
       <Card
         title="Outreach Suppression & Opt-Out List"
@@ -473,6 +906,25 @@ export default function Settings() {
         message="Are you sure you want to remove this entry from the suppression list? This contact will become eligible for future outreach campaigns."
         confirmText="Remove Entry"
       />
+
+      {/* Practice Gate Modal */}
+      {practiceGateOpen && (
+        <MindsetGateScreen
+          initialStatus={{
+            required: true,
+            setupRequired: gateQuotes.filter((q) => q.text?.trim()).length < 5,
+            quotes: gateQuotes,
+            threshold: gateConfig.gateMatchThreshold,
+            gateLanguage: gateConfig.gateLanguage,
+            fallbackAfterAttempts: gateConfig.gateFallbackAfterAttempts
+          }}
+          userId={gateStatus?.userId}
+          onUnlock={() => {
+            setPracticeGateOpen(false);
+            toast.success('Practice recital completed!');
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 /**
  * Vite Configuration for Knotiq Rugs Lead Scraper Dashboard
@@ -19,8 +20,16 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    resolve: {
+      alias: {
+        '@utils': path.resolve(__dirname, '../src/utils')
+      }
+    },
     server: {
       port: 5173,
+      fs: {
+        allow: ['..']
+      },
       proxy: {
         '/api': {
           target: backendTarget,

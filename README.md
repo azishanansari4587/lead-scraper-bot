@@ -268,6 +268,31 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
 | | `GET` | `/api/marketing/sources-report` | Sources conversion table, A/B reply rates (>=25 send guard), call rates |
 | | `GET` | `/api/marketing/export-sources` | Download Excel sources attribution report with formula injection defense |
 | | `POST` | `/api/marketing/inbound-lead` | Quick-add inbound lead from WhatsApp/walk-in with dedupe & Day 1 follow-up |
+| **Mindmaps** | `GET` | `/api/mindmaps` | List user goal mindmaps with node progress rollups and completion metrics |
+| | `POST` | `/api/mindmaps` | Create goal mindmap (blank or with 11-branch Knotiq skeleton) |
+| | `GET` | `/api/mindmaps/:id` | Full mindmap tree with collision-free radial/horizontal layout calculation |
+| | `PATCH` | `/api/mindmaps/:id` | Update mindmap metadata with Last-Write-Wins conflict detection (`updatedAt`) |
+| | `DELETE`| `/api/mindmaps/:id` | Archive or delete mindmap and cascade descendants |
+| | `POST` | `/api/mindmaps/:id/duplicate` | Duplicate mindmap and full subtree hierarchy up to 500 node limit |
+| | `GET` | `/api/mindmaps/:id/export` | Export mindmap as JSON or Markdown outline with task checkboxes |
+| | `POST` | `/api/mindmaps/import` | Hardened JSON import (regenerates IDs, drops linked fields, enforces max depth 6 & 500 nodes) |
+| | `POST` | `/api/mindmaps/:id/nodes` | Add node with strict tenancy validation on linked tasks, leads, and campaigns |
+| | `PATCH` | `/api/mindmaps/:id/nodes/:nodeId` | Update node title, WHY/HOW, KPI, priority, or task sync |
+| | `DELETE`| `/api/mindmaps/:id/nodes/:nodeId` | Cascade delete node and all subtree descendants |
+| | `POST` | `/api/mindmaps/:id/nodes/:nodeId/create-task` | Idempotently create linked task anchored via `Task.relatedMindmapNodeId` |
+| | `POST` | `/api/mindmaps/:id/nodes/:nodeId/duplicate` | Duplicate node subtree |
+| | `POST` | `/api/mindmaps/:id/nodes/reorder` | Reorder sibling node positions |
+| **Mindset Gate** | `GET` | `/api/gate/status` | Get current gate requirement, active quotes count, settings, and effective date |
+| | `POST` | `/api/gate/start` | Create or idempotently reuse in-progress gate log for today |
+| | `POST` | `/api/gate/complete` | Complete gate log with method (`voice`, `typed_fallback`, `mixed`) and ownership check |
+| | `GET` | `/api/gate/quotes` | List founder's personalized mantras |
+| | `POST` | `/api/gate/quotes` | Add mantra (enforces max 5 active quotes ceiling) |
+| | `PATCH` | `/api/gate/quotes/:id` | Edit mantra text, author, or language |
+| | `PUT` | `/api/gate/quotes/replace` | Atomically replace all 5 mantras (setup step) |
+| | `POST` | `/api/gate/quotes/reorder` | Reorder mantra sort order |
+| | `DELETE`| `/api/gate/quotes/:id` | Delete mantra |
+| | `GET` | `/api/gate/streak` | Get consecutive daily mindset recitation streak |
+| | `PATCH` | `/api/gate/settings` | Update gate mode and strictness with next-day relaxation protection |
 
 ---
 
@@ -297,6 +322,12 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
 6. **Lost Leads Breakdown by Stage:**
    - View any campaign funnel details drawer.
    - Lost leads are reported separately from the funnel with drop-off stage derived from audit logs (`Lost at Quotation`, `Lost at Contacted`) and an explicit limitation note for legacy transitions.
+7. **Mindset Gate Daily Principle Recitation Demo:**
+   - **First Launch Setup:** Open the dashboard with a fresh or unconfigured account (<5 active quotes). The Mindset Gate automatically displays the setup view requiring the founder to define all 5 core mantras before proceeding.
+   - **Voice Recital & Highlighting:** Recite each mantra aloud. Words light up in glowing gold (`#F59E0B`) in real-time as speech is recognized; the gate advances automatically once the threshold is met and the final word is confirmed.
+   - **Anti-Cheat Typed Fallback:** After 3 failed voice attempts or clicking "Type quote manually", the typed fallback unlocks. Attempting to paste (`Ctrl+V` / right-click paste) or drag-and-drop is actively blocked, ensuring manual typing.
+   - **Streak & Dashboard Integration:** Upon completing all 5 quotes, the gate plays the unlock animation and reveals the dashboard. Today's Command Center displays the updated Mindset Streak badge, and evening reviews track gate completion.
+   - **Next-Day Strictness Protection:** In Settings, attempting to disable the gate or lower matching strictness displays a banner stating the relaxation will take effect tomorrow, preventing mid-day discipline bypass.
 
 ---
 

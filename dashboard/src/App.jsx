@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import { ToastProvider } from './components/ui/Toast';
+import { ErrorBoundary } from './components/ui';
 
 import Today from './pages/Today';
 import Tasks from './pages/Tasks';
@@ -20,8 +21,11 @@ import Exports from './pages/Exports';
 import Settings from './pages/Settings';
 import BulkSend from './pages/BulkSend';
 import Mindmap from './pages/Mindmap';
+import Mindmaps from './pages/Mindmaps';
+import MindmapEditor from './pages/MindmapEditor';
 
 import { api } from './api';
+import GateGuard from './components/GateGuard';
 
 const ROUTE_TITLES = {
   '/today': 'Today Command Center',
@@ -32,6 +36,8 @@ const ROUTE_TITLES = {
   '/calendar': 'Calendar & Meeting Scheduler',
   '/marketing': 'Marketing & Multi-Channel Campaigns',
   '/mindmap': 'Strategy & Growth Mindmap',
+  '/growth-mindmap': 'Strategy & Growth Mindmap',
+  '/mindmaps': 'Goal Mindmaps',
   '/search': 'Search & Scrape Discovery',
   '/bulk': 'Bulk Outreach & Sequences',
   '/google': 'Google Search Console & Business Profile',
@@ -74,26 +80,31 @@ function DashboardLayout() {
         />
 
         <main id="main-content">
-          <Routes>
-            <Route path="/" element={<Navigate to="/today" replace />} />
-            <Route path="/today" element={<Today />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/leads" element={<Leads onExportRequested={() => navigate('/exports')} />} />
-            <Route path="/calls" element={<Calls />} />
-            <Route path="/notes" element={<Notes />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/marketing" element={<Marketing />} />
-            <Route path="/mindmap" element={<Mindmap />} />
-            <Route path="/google" element={<Google />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/search" element={<SearchScrape onNavigate={navigate} />} />
-            <Route path="/bulk" element={<BulkSend />} />
-            <Route path="/presets" element={<PresetsSchedules onRunPreset={() => navigate('/search')} />} />
-            <Route path="/sources" element={<Sources />} />
-            <Route path="/exports" element={<Exports />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<Navigate to="/today" replace />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Navigate to="/today" replace />} />
+              <Route path="/today" element={<Today />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/leads" element={<Leads onExportRequested={() => navigate('/exports')} />} />
+              <Route path="/calls" element={<Calls />} />
+              <Route path="/notes" element={<Notes />} />
+              <Route path="/calendar" element={<Calendar />} />
+              <Route path="/marketing" element={<Marketing />} />
+              <Route path="/growth-mindmap" element={<Mindmap />} />
+              <Route path="/mindmap" element={<Mindmap />} />
+              <Route path="/mindmaps" element={<Mindmaps />} />
+              <Route path="/mindmaps/:id" element={<MindmapEditor />} />
+              <Route path="/google" element={<Google />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/search" element={<SearchScrape onNavigate={navigate} />} />
+              <Route path="/bulk" element={<BulkSend />} />
+              <Route path="/presets" element={<PresetsSchedules onRunPreset={() => navigate('/search')} />} />
+              <Route path="/sources" element={<Sources />} />
+              <Route path="/exports" element={<Exports />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<Navigate to="/today" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
@@ -104,7 +115,9 @@ export default function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
-        <DashboardLayout />
+        <GateGuard>
+          <DashboardLayout />
+        </GateGuard>
       </BrowserRouter>
     </ToastProvider>
   );

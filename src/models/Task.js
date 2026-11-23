@@ -59,6 +59,10 @@ const Task = sequelize.define('Task', {
   sortOrder: {
     type: DataTypes.INTEGER,
     defaultValue: 0
+  },
+  relatedMindmapNodeId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: 'Tasks',
@@ -68,7 +72,8 @@ const Task = sequelize.define('Task', {
     { fields: ['userId', 'isMIT'] },
     { fields: ['userId', 'category'] },
     { fields: ['relatedLeadId'] },
-    { fields: ['recurrenceParentId'] }
+    { fields: ['recurrenceParentId'] },
+    { fields: ['relatedMindmapNodeId'] }
   ]
 });
 

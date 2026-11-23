@@ -59,6 +59,42 @@ const UserSettings = sequelize.define('UserSettings', {
   contentReminderTime: {
     type: DataTypes.STRING(10), // HH:mm
     defaultValue: '10:00'
+  },
+  gateMode: {
+    type: DataTypes.STRING(20),
+    defaultValue: 'every_session' // 'off', 'every_session', 'once_daily'
+  },
+  gateResetHour: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0 // 0-23
+  },
+  gateLanguage: {
+    type: DataTypes.STRING(20),
+    defaultValue: 'en-IN'
+  },
+  gateMatchThreshold: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.8 // 0.5 - 1.0
+  },
+  gateFallbackAfterAttempts: {
+    type: DataTypes.INTEGER,
+    defaultValue: 3
+  },
+  gateStrictnessEffectiveNextDay: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  pendingGateMode: {
+    type: DataTypes.STRING(20),
+    allowNull: true
+  },
+  pendingGateMatchThreshold: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
+  pendingEffectiveDate: {
+    type: DataTypes.STRING(10),
+    allowNull: true
   }
 }, {
   tableName: 'UserSettings',

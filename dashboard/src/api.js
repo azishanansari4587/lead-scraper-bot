@@ -262,5 +262,41 @@ export const api = {
     });
     return fetchJson(`/marketing/sources-report?${qs.toString()}`);
   },
-  addInboundLead: (payload) => fetchJson('/marketing/inbound-lead', { method: 'POST', body: JSON.stringify(payload) })
+  addInboundLead: (payload) => fetchJson('/marketing/inbound-lead', { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Mindmap Module
+  getMindmaps: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    return fetchJson(`/mindmaps?${qs.toString()}`);
+  },
+  createMindmap: (payload) => fetchJson('/mindmaps', { method: 'POST', body: JSON.stringify(payload) }),
+  getMindmap: (id) => fetchJson(`/mindmaps/${id}`),
+  updateMindmap: (id, updates) => fetchJson(`/mindmaps/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  deleteMindmap: (id) => fetchJson(`/mindmaps/${id}`, { method: 'DELETE' }),
+  duplicateMindmap: (id) => fetchJson(`/mindmaps/${id}/duplicate`, { method: 'POST' }),
+  createMindmapNode: (mapId, payload) => fetchJson(`/mindmaps/${mapId}/nodes`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateMindmapNode: (mapId, nodeId, updates) => fetchJson(`/mindmaps/${mapId}/nodes/${nodeId}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  moveMindmapNode: (mapId, nodeId, moveData) => fetchJson(`/mindmaps/${mapId}/nodes/${nodeId}/move`, { method: 'POST', body: JSON.stringify(moveData) }),
+  deleteMindmapNode: (mapId, nodeId) => fetchJson(`/mindmaps/${mapId}/nodes/${nodeId}`, { method: 'DELETE' }),
+  duplicateMindmapNode: (mapId, nodeId) => fetchJson(`/mindmaps/${mapId}/nodes/${nodeId}/duplicate`, { method: 'POST' }),
+  completeAllDescendants: (mapId, nodeId) => fetchJson(`/mindmaps/${mapId}/nodes/${nodeId}/complete-all`, { method: 'POST' }),
+  createTaskFromNode: (mapId, nodeId) => fetchJson(`/mindmaps/${mapId}/nodes/${nodeId}/create-task`, { method: 'POST' }),
+  exportMindmap: (mapId, format = 'json') => fetchJson(`/mindmaps/${mapId}/export?format=${format}`),
+  importMindmap: (payload, preview = false) => fetchJson(`/mindmaps/import?preview=${preview}`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Mindset Gate API
+  getGateStatus: () => fetchJson('/gate/status'),
+  startGate: () => fetchJson('/gate/start', { method: 'POST' }),
+  completeGate: (payload) => fetchJson('/gate/complete', { method: 'POST', body: JSON.stringify(payload) }),
+  getGateQuotes: () => fetchJson('/gate/quotes'),
+  createGateQuote: (payload) => fetchJson('/gate/quotes', { method: 'POST', body: JSON.stringify(payload) }),
+  updateGateQuote: (id, updates) => fetchJson(`/gate/quotes/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  replaceGateQuotes: (quotes) => fetchJson('/gate/quotes/replace', { method: 'PUT', body: JSON.stringify({ quotes }) }),
+  reorderGateQuotes: (order) => fetchJson('/gate/quotes/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
+  deleteGateQuote: (id) => fetchJson(`/gate/quotes/${id}`, { method: 'DELETE' }),
+  getGateStreak: () => fetchJson('/gate/streak'),
+  updateGateSettings: (settings) => fetchJson('/gate/settings', { method: 'PATCH', body: JSON.stringify(settings) })
 };

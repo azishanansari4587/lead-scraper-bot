@@ -13,6 +13,8 @@ const OutreachLog = require('../../models/OutreachLog');
 const CalendarEvent = require('../../models/CalendarEvent');
 const UserSettings = require('../../models/UserSettings');
 const Lead = require('../../models/Lead');
+const MindsetGateLog = require('../../models/MindsetGateLog');
+const gateService = require('../gateService');
 const logger = require('../../config/logger');
 
 class PlannerService {
@@ -108,7 +110,8 @@ class PlannerService {
       followUpsDone,
       followUpsMissed,
       plan,
-      existingReview
+      existingReview,
+      completedGate
     ] = await Promise.all([
       Call.count({
         where: {
@@ -154,7 +157,15 @@ class PlannerService {
         }
       }),
       DailyPlan.findOne({ where: { userId, date: dateStr } }),
-      DailyReview.findOne({ where: { userId, date: dateStr } })
+      DailyReview.findOne({ where: { userId, date: dateStr } }),
+      MindsetGateLog.findOne({
+        where: {
+          userId,
+          gateDate: dateStr,
+          completedAt: { [Op.ne]: null }
+        },
+        order: [['completedAt', 'DESC']]
+      })
     ]);
 
     // Unfinished MITs check
@@ -186,7 +197,9 @@ class PlannerService {
         tasksCompleted: tasksCompleted.length,
         tasksCompletedCount: tasksCompleted.length,
         followUpsDone,
-        followUpsMissed
+        followUpsMissed,
+        gateCompleted: Boolean(completedGate),
+        gateMethod: completedGate ? completedGate.method : null
       },
       tasksCompleted,
       unfinishedMits,
@@ -423,12 +436,24 @@ class PlannerService {
       }
     }
 
+    let gateStreak = 0;
+    let isGateCompletedToday = false;
+    try {
+      const gateRes = await gateService.calculateGateStreak(userId);
+      gateStreak = gateRes.gateStreak;
+      isGateCompletedToday = gateRes.isCompletedToday;
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to calculate gate streak in plannerService');
+    }
+
     return {
       reviewStreak,
       targetStreak,
       targetOutreach,
       targetCalls,
-      timezone: tz
+      timezone: tz,
+      gateStreak,
+      isGateCompletedToday
     };
   }
 }

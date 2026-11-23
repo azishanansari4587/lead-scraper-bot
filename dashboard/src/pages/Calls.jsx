@@ -14,7 +14,7 @@ import {
   X
 } from 'lucide-react';
 import { api } from '../api';
-import { Button, Card, Modal, Field, Select, Textarea, Badge, DataTable, Pagination, useToast } from '../components/ui';
+import { Button, Card, Modal, Field, Select, Textarea, Badge, DataTable, Pagination, EmptyState, useToast } from '../components/ui';
 
 export default function Calls() {
   const toast = useToast();
@@ -105,11 +105,12 @@ export default function Calls() {
     setTimeout(() => setCopiedScript(false), 2000);
   };
 
-  const activeScript = scripts.find((s) => s.buyerType === selectedScriptType) || scripts[0] || {
-    title: 'Standard Cold Trade Call',
-    scriptText: 'Hello, this is Knotiq Rugs calling regarding custom handmade carpets.',
-    objectionHandling: 'Offer yarn sample kit and catalog.',
-    tips: 'Be concise and value-focused.'
+  const matchedScript = scripts.find((s) => s.buyerType === selectedScriptType) || scripts[0];
+  const activeScript = {
+    title: matchedScript?.title || 'Standard Cold Trade Call',
+    scriptText: matchedScript?.scriptText || 'Hello, this is Knotiq Rugs calling regarding custom handmade carpets.',
+    objectionHandling: matchedScript?.objectionHandling || 'Offer yarn sample kit and catalog.',
+    tips: matchedScript?.tips || 'Be concise and value-focused.'
   };
 
   const handleLogCallSubmit = async (e) => {
@@ -150,18 +151,18 @@ export default function Calls() {
     {
       key: 'calledAt',
       label: 'Date & Time',
-      render: (c) => new Date(c.calledAt).toLocaleString()
+      render: (calledAt) => (calledAt ? new Date(calledAt).toLocaleString() : '—')
     },
     {
       key: 'lead',
       label: 'Buyer / Lead',
-      render: (c) => (
+      render: (lead, row) => (
         <div>
           <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-            {c.lead?.businessName || `Lead #${c.leadId}`}
+            {lead?.businessName || (row?.leadId ? `Lead #${row.leadId}` : 'Unknown Lead')}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-            {c.lead?.phone || 'No phone'} • {c.lead?.city || ''}
+            {lead?.phone || 'No phone'} • {lead?.city || lead?.country || ''}
           </div>
         </div>
       )
@@ -169,39 +170,39 @@ export default function Calls() {
     {
       key: 'direction',
       label: 'Direction',
-      render: (c) => (
-        <Badge variant={c.direction === 'inbound' ? 'success' : 'neutral'}>
-          {c.direction?.toUpperCase()}
+      render: (direction) => (
+        <Badge variant={direction === 'inbound' ? 'success' : 'neutral'}>
+          {(direction || 'outbound').toUpperCase()}
         </Badge>
       )
     },
     {
       key: 'outcome',
       label: 'Outcome',
-      render: (c) => {
+      render: (outcome) => {
         let variant = 'neutral';
-        if (c.outcome === 'interested' || c.outcome === 'connected') variant = 'success';
-        if (c.outcome === 'callback_requested') variant = 'warning';
-        if (c.outcome === 'not_interested' || c.outcome === 'wrong_number') variant = 'danger';
-        return <Badge variant={variant}>{c.outcome?.replace('_', ' ').toUpperCase()}</Badge>;
+        if (outcome === 'interested' || outcome === 'connected') variant = 'success';
+        if (outcome === 'callback_requested') variant = 'warning';
+        if (outcome === 'not_interested' || outcome === 'wrong_number') variant = 'danger';
+        return <Badge variant={variant}>{(outcome || 'unknown').replace(/_/g, ' ').toUpperCase()}</Badge>;
       }
     },
     {
-      key: 'duration',
+      key: 'durationSec',
       label: 'Duration',
-      render: (c) => `${Math.floor((c.durationSec || 0) / 60)}m ${(c.durationSec || 0) % 60}s`
+      render: (durationSec) => `${Math.floor((durationSec || 0) / 60)}m ${(durationSec || 0) % 60}s`
     },
     {
       key: 'summary',
       label: 'Summary & Action',
-      render: (c) => (
+      render: (summary, row) => (
         <div>
           <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)' }}>
-            {c.summary || '—'}
+            {summary || '—'}
           </div>
-          {c.nextAction && (
+          {row?.nextAction && (
             <div style={{ fontSize: '11px', color: 'var(--gold-primary)', marginTop: '2px' }}>
-              Action: {c.nextAction}
+              Action: {row.nextAction}
             </div>
           )}
         </div>
@@ -311,8 +312,18 @@ export default function Calls() {
               <DataTable
                 columns={columns}
                 data={calls}
-                loading={loadingCalls}
-                emptyMessage="No calls logged yet. Click 'Log New Call' or dial from the Today dashboard."
+                emptyContent={
+                  loadingCalls ? (
+                    <div style={{ textAlign: 'center', padding: '36px', color: 'var(--text-dim)' }}>
+                      Loading calls...
+                    </div>
+                  ) : (
+                    <EmptyState
+                      title="No calls logged yet"
+                      description="Click 'Log New Call' or dial from the Today dashboard to start logging outreach calls."
+                    />
+                  )
+                }
               />
               {totalCalls > 15 && (
                 <div style={{ marginTop: '16px' }}>

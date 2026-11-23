@@ -23,7 +23,8 @@ import {
   Star,
   CheckSquare,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Network
 } from 'lucide-react';
 import { api } from '../api';
 import { Button, Card, Modal, Field, Select, Textarea, Badge, useToast } from '../components/ui';
@@ -402,6 +403,11 @@ export default function Today({ onNavigate }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--font-xs)', color: 'var(--emerald-accent)', fontWeight: 700 }}>
                 <Target size={16} /> {data.streaks.targetStreak} Day Target Hit
               </div>
+              {data.streaks.gateStreak !== undefined && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--font-xs)', color: '#A78BFA', fontWeight: 700 }} title="Daily Mindset Gate recitation streak">
+                  <Sparkles size={16} /> {data.streaks.gateStreak} Day Mindset Streak
+                </div>
+              )}
             </div>
           )}
 
@@ -899,6 +905,102 @@ export default function Today({ onNavigate }) {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Mindmap Actions Due This Week */}
+      <div style={{ marginBottom: '24px' }}>
+        <Card
+          title="Mindmap Actions Due This Week"
+          icon={Network}
+          action={
+            <button
+              type="button"
+              onClick={() => onNavigate ? onNavigate('/mindmaps') : window.location.assign('/mindmaps')}
+              style={{ background: 'none', border: 'none', color: 'var(--gold-primary)', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              All Mindmaps <ExternalLink size={12} />
+            </button>
+          }
+        >
+          {(!data?.mindmapActionsDueThisWeek || data.mindmapActionsDueThisWeek.length === 0) ? (
+            <div style={{ padding: '24px 10px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 'var(--font-xs)' }}>
+              No strategic mindmap actions due this week.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px' }}>
+              {data.mindmapActionsDueThisWeek.map((action) => {
+                const priorityColor = action.priority === 'now' ? 'var(--gold-primary)' : action.priority === 'next' ? '#38BDF8' : '#94A3B8';
+                return (
+                  <div
+                    key={action.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      background: 'var(--surface-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      borderLeft: action.isOverdue ? '3px solid var(--danger)' : `3px solid ${priorityColor}`,
+                      fontSize: 'var(--font-xs)',
+                      gap: '12px'
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {action.title}
+                        </span>
+                        {action.isOverdue && (
+                          <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>
+                            OVERDUE
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ color: 'var(--text-dim)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>Map: {action.mindmapTitle}</span>
+                        {action.dueDate && <span>• Due: {action.dueDate}</span>}
+                        {action.kpiTarget && <span>• Target: {action.kpiCurrent || 0}/{action.kpiTarget}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          textTransform: 'uppercase',
+                          fontWeight: 700,
+                          color: priorityColor,
+                          background: `${priorityColor}15`,
+                          padding: '2px 6px',
+                          borderRadius: '4px'
+                        }}
+                      >
+                        {action.priority}
+                      </span>
+                      <a
+                        href={`/mindmaps/${action.mindmapId}#node-${action.id}`}
+                        onClick={(e) => {
+                          if (onNavigate) {
+                            e.preventDefault();
+                            onNavigate(`/mindmaps/${action.mindmapId}`);
+                          }
+                        }}
+                        style={{
+                          color: 'var(--gold-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          textDecoration: 'none'
+                        }}
+                        title="Open in Mindmap Editor"
+                      >
+                        <ChevronRight size={16} />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>
