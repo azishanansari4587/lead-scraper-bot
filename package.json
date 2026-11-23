@@ -15,6 +15,7 @@
     "seed:keywords": "node src/scripts/seedKeywords.js",
     "backup": "node src/scripts/backup.js",
     "migrate": "node src/scripts/runMigrations.js",
+    "clean:test-data": "node src/scripts/cleanTestData.js",
     "build": "npm run build:dashboard",
     "build:dashboard": "npm run build --prefix dashboard",
     "tunnel": "node src/scripts/startTunnel.js",
