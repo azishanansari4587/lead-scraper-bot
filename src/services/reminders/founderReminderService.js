@@ -14,6 +14,7 @@ const CalendarEvent = require('../../models/CalendarEvent');
 const ContentPost = require('../../models/ContentPost');
 const ReminderLog = require('../../models/ReminderLog');
 const Lead = require('../../models/Lead');
+const routineEnforcementService = require('../routine/routineEnforcementService');
 const notifier = require('../notifications/notifier');
 const env = require('../../config/env');
 const logger = require('../../config/logger');
@@ -82,6 +83,13 @@ class FounderReminderService {
     const postTime = settings.contentReminderTime || '10:00';
     if (localTimeStr === postTime) {
       await this.sendContentPostReminder(userId, localDateStr, settings);
+    }
+
+    // 5. Evaluate Routine Must-Do Escalation Ladder (CEO Routine Engine)
+    try {
+      await routineEnforcementService.evaluateEscalations(userId);
+    } catch (err) {
+      logger.warn({ err: err.message, userId }, 'Error checking routine escalations');
     }
   }
 

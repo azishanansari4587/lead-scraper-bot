@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Phone,
   Mail,
@@ -9,6 +10,7 @@ import {
   Clock,
   ArrowRight,
   Plus,
+  Play,
   FileText,
   User,
   Sparkles,
@@ -31,6 +33,7 @@ import { Button, Card, Modal, Field, Select, Textarea, Badge, useToast } from '.
 
 export default function Today({ onNavigate }) {
   const toast = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [nowTime, setNowTime] = useState(new Date());
@@ -95,6 +98,12 @@ export default function Today({ onNavigate }) {
       } else if (e.altKey && (e.key === 'm' || e.key === 'M')) {
         e.preventDefault();
         openMorningModal();
+      } else if (e.altKey && (e.key === 'r' || e.key === 'R')) {
+        e.preventDefault();
+        navigate('/routine');
+      } else if (e.altKey && (e.key === 'u' || e.key === 'U')) {
+        e.preventDefault();
+        navigate('/routine');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -408,6 +417,11 @@ export default function Today({ onNavigate }) {
                   <Sparkles size={16} /> {data.streaks.gateStreak} Day Mindset Streak
                 </div>
               )}
+              {data.streaks.routineStreak !== undefined && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--font-xs)', color: 'var(--gold-primary)', fontWeight: 700 }} title="Daily Routine consistency streak">
+                  <Clock size={16} /> {data.streaks.routineStreak} Day Routine Streak
+                </div>
+              )}
             </div>
           )}
 
@@ -559,6 +573,123 @@ export default function Today({ onNavigate }) {
             Complete Evening Review →
           </Button>
         </div>
+      )}
+
+      {/* CEO Routine: Now and Next Strip */}
+      {data?.routineNowNext && (data.routineNowNext.now || data.routineNowNext.next) && (
+        <Card
+          style={{
+            marginBottom: '20px',
+            padding: '14px 18px',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(18, 26, 45, 0.8) 100%)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            borderLeft: '4px solid var(--gold-primary)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            {/* Left: NOW BLOCK */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '280px' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--gold-primary)',
+                  fontWeight: 800,
+                  fontSize: '11px',
+                  textTransform: 'uppercase',
+                  flexShrink: 0
+                }}
+              >
+                NOW
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {data.routineNowNext.now ? (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: 'var(--font-sm)', color: 'var(--text-primary)' }}>
+                        {data.routineNowNext.now.title || data.routineNowNext.now.blockTitle}
+                      </span>
+                      <Badge variant={data.routineNowNext.now.status === 'in_progress' ? 'gold' : data.routineNowNext.now.status === 'done' ? 'success' : 'secondary'}>
+                        {data.routineNowNext.now.plannedStart} - {data.routineNowNext.now.plannedEnd}
+                      </Badge>
+                      {data.routineNowNext.now.isMustDo && <Badge variant="gold">Must-Do</Badge>}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                      Category: {data.routineNowNext.now.category} | Status: <strong style={{ color: 'var(--gold-primary)' }}>{data.routineNowNext.now.status}</strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)' }}>
+                    No scheduled routine block active right now.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Middle: NEXT BLOCK */}
+            {data.routineNowNext.next && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 16px', borderLeft: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  NEXT
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
+                    {data.routineNowNext.next.title || data.routineNowNext.next.blockTitle}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                    Starts at {data.routineNowNext.next.plannedStart}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Right: Quick Check-in Actions & Open Routine */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {data.routineNowNext.now && data.routineNowNext.now.status !== 'done' && (
+                <>
+                  {data.routineNowNext.now.status !== 'in_progress' && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={async () => {
+                        await api.checkInRoutineEntry(data.routineNowNext.now.id, { action: 'start' });
+                        toast.success('Started routine block!');
+                        loadSummary();
+                      }}
+                    >
+                      <Play size={12} /> Start
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="xs"
+                    onClick={async () => {
+                      await api.checkInRoutineEntry(data.routineNowNext.now.id, { action: 'done' });
+                      toast.success('Completed routine block!');
+                      loadSummary();
+                    }}
+                  >
+                    <CheckCircle2 size={12} /> Done
+                  </Button>
+                </>
+              )}
+
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => navigate('/routine')}
+                style={{ color: 'var(--gold-primary)' }}
+              >
+                Routine Hub (Alt+R) <ArrowRight size={12} />
+              </Button>
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* 3 MITs (Most Important Tasks) Showcase Widget */}

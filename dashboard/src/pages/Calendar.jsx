@@ -456,8 +456,15 @@ export default function Calendar() {
                             </span>
                           )}
 
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {item.title}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.title}
+                            </span>
+                            {item.itemType === 'routine' && (
+                              <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: '3px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--gold-primary)', fontWeight: 700, flexShrink: 0 }}>
+                                Routine
+                              </span>
+                            )}
                           </div>
 
                           <div style={{ color: 'var(--text-secondary)', fontSize: '10px' }}>
@@ -824,8 +831,15 @@ export default function Calendar() {
                   </Button>
                 </>
               ) : (
-                <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-tertiary)' }}>
-                  This is a linked {selectedItem.itemType}. Manage it directly in its parent section.
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-tertiary)' }}>
+                    Linked {selectedItem.itemType} item.
+                  </div>
+                  {selectedItem.itemType === 'routine' && (
+                    <a href="/routine" className="btn btn-primary btn-sm" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      Open Routine Hub &rarr;
+                    </a>
+                  )}
                 </div>
               )}
             </div>

@@ -136,8 +136,13 @@ const campaignsRouter = require('./routes/campaigns');
 const marketingRouter = require('./routes/marketing');
 const mindmapsRouter = require('./routes/mindmaps');
 const gateRouter = require('./routes/gate');
+const routineRouter = require('./routes/routine');
 
 // Mount API routes
+app.use('/api/routine', (req, res, next) => {
+  if (req.path === '/partner/claim') return next();
+  return requireAuth(req, res, next);
+}, routineRouter);
 app.use('/api/today', requireAuth, todayRouter);
 app.use('/api/tasks', requireAuth, tasksRouter);
 app.use('/api/calendar', requireAuth, calendarRouter);

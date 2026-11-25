@@ -11,6 +11,7 @@ const ContentPost = require('../../models/ContentPost');
 const Lead = require('../../models/Lead');
 const MindmapNode = require('../../models/MindmapNode');
 const Mindmap = require('../../models/Mindmap');
+const RoutineEntry = require('../../models/RoutineEntry');
 const logger = require('../../config/logger');
 
 class CalendarService {
@@ -32,7 +33,7 @@ class CalendarService {
     const startFrom = from ? new Date(from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const endTo = to ? new Date(to) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    const [events, tasks, followUps, posts, mindmapNodes] = await Promise.all([
+    const [events, tasks, followUps, posts, mindmapNodes, routineEntries] = await Promise.all([
       CalendarEvent.findAll({
         where: {
           userId,
@@ -77,6 +78,14 @@ class CalendarService {
         },
         include: [{ model: Mindmap, as: 'mindmap', attributes: ['id', 'title'] }],
         order: [['dueDate', 'ASC']]
+      }),
+      RoutineEntry.findAll({
+        where: {
+          userId,
+          plannedStartAt: { [Op.lte]: endTo },
+          plannedEndAt: { [Op.gte]: startFrom }
+        },
+        order: [['plannedStartAt', 'ASC']]
       })
     ]);
 
@@ -225,13 +234,37 @@ class CalendarService {
       };
     });
 
+    // 7. Format RoutineEntries (CEO Routine Engine)
+    const formattedRoutineEntries = (routineEntries || []).map((r) => {
+      const isMissed = r.status === 'missed';
+      return {
+        id: r.id,
+        rawId: r.id,
+        feedId: `routine_${r.id}`,
+        itemType: 'routine',
+        title: `Routine: ${r.title}${r.isMustDo ? ' ⭐' : ''}`,
+        startAt: r.plannedStartAt,
+        endAt: r.plannedEndAt,
+        allDay: false,
+        type: 'routine',
+        category: r.category,
+        status: r.status,
+        isMustDo: Boolean(r.isMustDo),
+        isProtected: Boolean(r.isProtected),
+        hasConflict: false,
+        conflicts: [],
+        color: isMissed ? '#ef4444' : (r.isMustDo ? '#F59E0B' : '#10B981')
+      };
+    });
+
     // Merge and sort chronologically
     const allItems = [
       ...formattedEvents,
       ...formattedTasks,
       ...formattedFollowUps,
       ...formattedPosts,
-      ...formattedMindmapNodes
+      ...formattedMindmapNodes,
+      ...formattedRoutineEntries
     ].sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
 
     return {

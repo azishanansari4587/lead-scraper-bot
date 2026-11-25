@@ -287,3 +287,54 @@ This document records all significant technical and design choices made during t
 - **Ritual & Streaks Integration:**
   - Mindset gate streaks are integrated into `plannerService.calculateStreaks` and `GET /api/today/summary`.
   - Evening reviews report `{ gateCompleted: true, gateMethod }` as part of the daily ritual scorecard.
+
+## 22. CEO Routine Engine Architecture (Feature: CEO Routine)
+- **Pure Mechanism & Self-Configured Ownership:**
+  - Zero pre-written advice, pre-filled times, or artificial defaults; the founder defines all templates, blocks, categories, times, and MITs.
+  - Multiple templates (weekday, weekend, travel) with strict validation: only one active template per weekday, plus travel date range overrides (Amendment 9).
+- **Dual Timezone Operations (GST UTC+4 & IST UTC+5:30):**
+  - Seamlessly bridges executive commercial operations in Dubai/Ajman with artisan manufacturing loom workshops in Bhadohi, UP, India.
+  - Dual time display on all templates, entries, timeline chips, and calendar items.
+- **Overnight Blocks & Quiet Hours Handling (Amendment 3):**
+  - Robust support for blocks and quiet hours that cross midnight (e.g., 23:00 to 06:00 sleep block, 22:00 to 07:00 quiet hours).
+  - Stores UTC instants `plannedStartAt` and `plannedEndAt` on `RoutineEntry` derived from user local timezone (`Asia/Dubai` default).
+- **Carry-Forward Rules (Amendment 1):**
+  - Carry-forward applies **strictly to one-off must-dos and task-linked must-dos**, never to recurring habit blocks (which record a miss and feed streaks/analytics).
+  - Carried entries spawn a new record (`carryCount + 1`, `carriedFromEntryId`) while original is preserved as `missed`. Slot choice algorithm strictly avoids protected sleep/rest blocks and quiet hours.
+  - Forced decision prompt is enforced when `carryCount >= 3` (break into subtasks, change priority/delegate, or delete from routine with a reason).
+- **Bidirectional Task Synchronization (Amendment 2):**
+  - Completing a routine entry with a linked task explicitly prompts before completing the Task (or respects configuration).
+  - Completing a Task from any dashboard view (e.g. Tasks, Today) automatically marks the linked routine entry `done`. Sync guards prevent recursive loops and duplicate linkages.
+- **Accountability Partner Telegram Deep Link (Amendment 4):**
+  - Uses Telegram deep link format (`https://t.me/<bot>?start=routine_<token>`).
+  - Cryptographically random 32-byte tokens (`crypto.randomBytes`), stored as SHA-256 hash in database with 48h expiry and single-use enforcement.
+  - Partner can revoke anytime via `/stop` in the bot; founder can revoke anytime from Settings. Consent timestamps recorded. Private notes and reasons are strictly never transmitted.
+- **Focus Lock Safety & Emergency Exit (Amendment 5):**
+  - L4 Focus Lock displays full-screen overlay for overdue must-do blocks.
+  - Emergency exit mechanism requires a written reason (minimum 5 characters), logged in AuditLog, with weekly usage cap (default 2/week).
+  - Navigation to `/settings` and `/exports` is always accessible.
+  - **Delayed Policy Loosening:** Relaxing enforcement (disabling focus lock, raising snooze limits, shortening quiet hours, removing stakes) takes effect starting the next local calendar day. Tightening rules is immediate.
+- **Escalation Ladder & Proportional Step Capping (Amendment 6):**
+  - Ladder progression: L1 In-App -> L2 Telegram -> L3 Email -> L4 Focus Lock.
+  - Step timings are capped proportionally relative to block length (e.g., L2 at 50%, L3 at 75%, L4 at 100% of duration).
+  - Nudges stop immediately once the founder marks an entry `in_progress` (Start).
+  - If a started block exceeds planned end time, system asks "Still working?" before auto-marking missed.
+- **Daily Routine Score (0-100) Formula (Amendment 7):**
+  - When Must-Dos exist: $50\% \text{ Must-Do} + 30\% \text{ Overall} + 20\% \text{ On-Time Starts}$ ($\pm 10\text{m}$ tolerance, partial credit = 0.5).
+  - When no Must-Dos: $60\% \text{ Overall} + 40\% \text{ On-Time Starts}$.
+  - Excludes configured weekly rest day (default `null`) and protected rest/sleep blocks from performance scores (sleep adherence tracked separately).
+- **Supported Stakes Catalog (Amendment 8):**
+  - Restricted to concrete verifiable consequence types: `restrict_non_essential_pages`, `pledge_reminder`, `partner_alert`. Free text consequences are reserved for personal notes only.
+- **Lazy Catch-Up & Reliability (Amendment 10):**
+  - Entry generation and `autoMarkMissed` run idempotently on read (whenever entries or today dashboard are fetched), ensuring accurate state even if crons were suspended.
+- **Collision-Free Keyboard Shortcuts (Amendment 11):**
+  - Routine shortcuts: `Alt+R` (Open Routine Hub), `Alt+S` (Start Block), `Alt+X` (Complete Block), `Alt+U` (Quick Add Unplanned).
+  - Verified non-colliding with browser reserved keys (`Ctrl+D`, `Alt+D`, etc.) and existing app shortcuts (`Alt+C` Log Call, `Alt+N` Note, `Alt+M` Morning Plan).
+- **Health Guardrails & Rest Day Defaults (Amendment 12):**
+  - `weeklyRestDay` defaults to `null` (None; founder explicitly selects).
+  - Protected blocks (`isProtected: true`) are immune from enforcement, locking, or nudges.
+  - Overload check computes total planned waking hours against protected rest blocks and `minDailyRestHours`.
+- **Fast Indexed Evidence Aggregation (Amendment 13):**
+  - Single-pass indexed queries aggregate calls, emails, WhatsApps, and completed tasks during each routine block window.
+  - Verified execution time under 15ms on 90-day historical datasets.
+

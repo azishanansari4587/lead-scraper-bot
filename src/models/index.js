@@ -28,6 +28,10 @@ const Mindmap = require('./Mindmap');
 const MindmapNode = require('./MindmapNode');
 const MindsetQuote = require('./MindsetQuote');
 const MindsetGateLog = require('./MindsetGateLog');
+const RoutineTemplate = require('./RoutineTemplate');
+const RoutineBlock = require('./RoutineBlock');
+const RoutineEntry = require('./RoutineEntry');
+const RoutinePolicy = require('./RoutinePolicy');
 
 // Associations (idempotent guard for multi-import/test environments)
 if (!Lead.associations?.calls) {
@@ -138,6 +142,35 @@ if (!MindmapNode.associations?.campaign) {
   MindmapNode.belongsTo(Campaign, { foreignKey: 'linkedCampaignId', as: 'campaign' });
 }
 
+// CEO Routine Engine Associations
+if (!RoutineTemplate.associations?.blocks) {
+  RoutineTemplate.hasMany(RoutineBlock, { foreignKey: 'templateId', as: 'blocks', onDelete: 'CASCADE' });
+}
+if (!RoutineBlock.associations?.template) {
+  RoutineBlock.belongsTo(RoutineTemplate, { foreignKey: 'templateId', as: 'template' });
+}
+
+if (!RoutineBlock.associations?.entries) {
+  RoutineBlock.hasMany(RoutineEntry, { foreignKey: 'blockId', as: 'entries', onDelete: 'SET NULL' });
+}
+if (!RoutineEntry.associations?.block) {
+  RoutineEntry.belongsTo(RoutineBlock, { foreignKey: 'blockId', as: 'block' });
+}
+
+if (!Task.associations?.routineBlocks) {
+  Task.hasMany(RoutineBlock, { foreignKey: 'linkedTaskId', as: 'routineBlocks', onDelete: 'SET NULL' });
+}
+if (!RoutineBlock.associations?.linkedTask) {
+  RoutineBlock.belongsTo(Task, { foreignKey: 'linkedTaskId', as: 'linkedTask' });
+}
+
+if (!Task.associations?.routineEntries) {
+  Task.hasMany(RoutineEntry, { foreignKey: 'linkedTaskId', as: 'routineEntries', onDelete: 'SET NULL' });
+}
+if (!RoutineEntry.associations?.linkedTask) {
+  RoutineEntry.belongsTo(Task, { foreignKey: 'linkedTaskId', as: 'linkedTask' });
+}
+
 const models = {
   sequelize,
   Lead,
@@ -168,7 +201,11 @@ const models = {
   Mindmap,
   MindmapNode,
   MindsetQuote,
-  MindsetGateLog
+  MindsetGateLog,
+  RoutineTemplate,
+  RoutineBlock,
+  RoutineEntry,
+  RoutinePolicy
 };
 
 module.exports = models;

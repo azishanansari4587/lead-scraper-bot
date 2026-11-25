@@ -27,6 +27,7 @@ const DailyPlan = require('../../models/DailyPlan');
 const DailyReview = require('../../models/DailyReview');
 const MindmapNode = require('../../models/MindmapNode');
 const Mindmap = require('../../models/Mindmap');
+const routineService = require('../../services/routine/routineService');
 const { calculateStreaks } = require('../../services/planner/plannerService');
 
 const router = express.Router();
@@ -66,7 +67,8 @@ router.get('/summary', async (req, res, next) => {
       tasksDueToday,
       calendarEventsToday,
       streaks,
-      mindmapActionsDueThisWeek
+      mindmapActionsDueThisWeek,
+      routineNowNext
     ] = await Promise.all([
       // 1. User settings
       UserSettings.findOne({ where: { userId } }).then((s) => s || {
@@ -227,7 +229,10 @@ router.get('/summary', async (req, res, next) => {
           mindmapTitle: n.mindmap?.title || 'Mindmap',
           deepLink: `/mindmaps/${n.mindmapId}#node-${n.id}`
         }))
-      )
+      ),
+
+      // 14. Routine Now and Next (CEO Routine Engine)
+      routineService.getNowAndNext(userId, todayStr).catch(() => null)
     ]);
 
     // Enrich todayPlan with task completion states
@@ -331,6 +336,7 @@ router.get('/summary', async (req, res, next) => {
       overdueFollowUps,
       todayFollowUps,
       mindmapActionsDueThisWeek,
+      routineNowNext,
       priorities: priorities.slice(0, 3)
     });
   } catch (err) {

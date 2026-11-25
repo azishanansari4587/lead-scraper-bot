@@ -298,5 +298,27 @@ export const api = {
   reorderGateQuotes: (order) => fetchJson('/gate/quotes/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
   deleteGateQuote: (id) => fetchJson(`/gate/quotes/${id}`, { method: 'DELETE' }),
   getGateStreak: () => fetchJson('/gate/streak'),
-  updateGateSettings: (settings) => fetchJson('/gate/settings', { method: 'PATCH', body: JSON.stringify(settings) })
+  updateGateSettings: (settings) => fetchJson('/gate/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
+
+  // CEO Routine Engine API
+  getRoutineToday: (date) => fetchJson(`/routine/today${date ? `?date=${encodeURIComponent(date)}` : ''}`),
+  getRoutineEntries: (date) => fetchJson(`/routine/entries${date ? `?date=${encodeURIComponent(date)}` : ''}`),
+  checkInRoutineEntry: (id, payload) => fetchJson(`/routine/entries/${id}/check-in`, { method: 'POST', body: JSON.stringify(payload) }),
+  addUnplannedRoutineEntry: (payload) => fetchJson('/routine/entries/unplanned', { method: 'POST', body: JSON.stringify(payload) }),
+  snoozeRoutineEntry: (id, payload) => fetchJson(`/routine/entries/${id}/snooze`, { method: 'POST', body: JSON.stringify(payload) }),
+  resolveCarryDecision: (id, payload) => fetchJson(`/routine/entries/${id}/decision`, { method: 'POST', body: JSON.stringify(payload) }),
+  getRoutineTemplates: () => fetchJson('/routine/templates'),
+  createRoutineTemplate: (payload) => fetchJson('/routine/templates', { method: 'POST', body: JSON.stringify(payload) }),
+  updateRoutineTemplate: (id, updates) => fetchJson(`/routine/templates/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  deleteRoutineTemplate: (id) => fetchJson(`/routine/templates/${id}`, { method: 'DELETE' }),
+  addRoutineBlock: (payload) => fetchJson('/routine/blocks', { method: 'POST', body: JSON.stringify(payload) }),
+  updateRoutineBlock: (id, updates) => fetchJson(`/routine/blocks/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  deleteRoutineBlock: (id) => fetchJson(`/routine/blocks/${id}`, { method: 'DELETE' }),
+  getWeeklyRoutineAnalytics: (includeAi = false) => fetchJson(`/routine/analytics/weekly?includeAi=${includeAi}`),
+  acceptRoutineSuggestion: (payload) => fetchJson('/routine/suggestions/accept', { method: 'POST', body: JSON.stringify(payload) }),
+  getRoutinePolicy: () => fetchJson('/routine/policy'),
+  updateRoutinePolicy: (payload) => fetchJson('/routine/policy', { method: 'PATCH', body: JSON.stringify(payload) }),
+  emergencyExitFocusLock: (reason) => fetchJson('/routine/policy/emergency-exit', { method: 'POST', body: JSON.stringify({ reason }) }),
+  createPartnerInvite: (username) => fetchJson('/routine/partner/invite', { method: 'POST', body: JSON.stringify({ username }) }),
+  stopPartnerSharing: () => fetchJson('/routine/partner/stop', { method: 'POST' })
 };

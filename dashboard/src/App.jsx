@@ -7,6 +7,8 @@ import { ErrorBoundary } from './components/ui';
 
 import Today from './pages/Today';
 import Tasks from './pages/Tasks';
+import Routine from './pages/Routine';
+import RoutineReview from './pages/RoutineReview';
 import Leads from './pages/Leads';
 import Calls from './pages/Calls';
 import Notes from './pages/Notes';
@@ -26,9 +28,12 @@ import MindmapEditor from './pages/MindmapEditor';
 
 import { api } from './api';
 import GateGuard from './components/GateGuard';
+import FocusLockModal from './components/FocusLockModal';
 
 const ROUTE_TITLES = {
   '/today': 'Today Command Center',
+  '/routine': 'CEO Routine Engine',
+  '/routine/review': 'Routine Weekly Review & Analytics',
   '/tasks': 'Tasks & Priority MITs',
   '/leads': 'Leads Pipeline & Outreach',
   '/calls': 'Call System & Buyer Scripts',
@@ -79,11 +84,15 @@ function DashboardLayout() {
           onToggleMobileMenu={() => setMobileOpen((prev) => !prev)}
         />
 
+        <FocusLockModal />
+
         <main id="main-content">
           <ErrorBoundary>
             <Routes>
               <Route path="/" element={<Navigate to="/today" replace />} />
               <Route path="/today" element={<Today />} />
+              <Route path="/routine" element={<Routine />} />
+              <Route path="/routine/review" element={<RoutineReview />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/leads" element={<Leads onExportRequested={() => navigate('/exports')} />} />
               <Route path="/calls" element={<Calls />} />
