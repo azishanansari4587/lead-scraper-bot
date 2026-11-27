@@ -24,7 +24,8 @@ import {
   Award,
   Moon,
   Copy,
-  Check
+  Check,
+  Wallet
 } from 'lucide-react';
 import { api } from '../api';
 import MindsetGateScreen from '../components/MindsetGateScreen';
@@ -115,6 +116,26 @@ export default function Settings() {
   const [partnerInviteUrl, setPartnerInviteUrl] = useState('');
   const [generatingInvite, setGeneratingInvite] = useState(false);
 
+  // Work Wallet Policy state
+  const [walletPolicy, setWalletPolicy] = useState({
+    enabled: true,
+    earnRatePaisePerMin: 100,
+    penaltyRatePaisePerMin: 100,
+    overtimeMode: 'none',
+    overtimeCapMinutes: 0,
+    dailyBreakAllowanceMinutes: 90,
+    monthlyLeaveAllowanceDays: 2,
+    allowNegative: true,
+    floorEnabled: false,
+    walletFloorPaise: 0,
+    idleCheckEnabled: true,
+    idleTimeoutMinutes: 10,
+    maxDailyManualMinutes: 60,
+    minDailyPersonalMinutes: 120
+  });
+  const [walletSettlement, setWalletSettlement] = useState(null);
+  const [savingWalletPolicy, setSavingWalletPolicy] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -122,16 +143,21 @@ export default function Settings() {
   async function loadData() {
     try {
       setLoading(true);
-      const [settingsRes, optoutsRes, userSettingsRes, gateStatusRes, gateQuotesRes, routinePolicyRes] = await Promise.all([
+      const [settingsRes, optoutsRes, userSettingsRes, gateStatusRes, gateQuotesRes, routinePolicyRes, walletPolicyRes, walletStateRes] = await Promise.all([
         api.getSettings().catch(() => ({ settings: {} })),
         api.getOptOuts().catch(() => ({ optouts: [] })),
         api.getUserSettings().catch(() => ({ settings: {} })),
         api.getGateStatus().catch(() => null),
         api.getGateQuotes().catch(() => ({ quotes: [] })),
-        api.getRoutinePolicy().catch(() => null)
+        api.getRoutinePolicy().catch(() => null),
+        api.getWalletPolicy().catch(() => null),
+        api.getWalletState().catch(() => null)
       ]);
       setSettings(settingsRes.settings);
       setOptouts(optoutsRes.optouts || []);
+      if (walletStateRes?.settlement) {
+        setWalletSettlement(walletStateRes.settlement);
+      }
       if (routinePolicyRes?.policy) {
         const pol = routinePolicyRes.policy;
         setRoutinePolicy({
@@ -141,6 +167,9 @@ export default function Settings() {
             : ['restrict_non_essential_pages', 'pledge_reminder'],
           weeklyRestDay: pol.weeklyRestDay
         });
+      }
+      if (walletPolicyRes?.policy) {
+        setWalletPolicy(walletPolicyRes.policy);
       }
       if (gateStatusRes) {
         setGateStatus(gateStatusRes);
@@ -298,6 +327,21 @@ export default function Settings() {
       toast.error(err.message || 'Failed to update routine policy');
     } finally {
       setSavingRoutinePolicy(false);
+    }
+  }
+
+  async function handleSaveWalletPolicy(e) {
+    if (e) e.preventDefault();
+    try {
+      setSavingWalletPolicy(true);
+      const res = await api.updateWalletPolicy(walletPolicy);
+      if (res.policy) setWalletPolicy(res.policy);
+      toast.success('Work Wallet policy and rates updated successfully.');
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update wallet policy');
+    } finally {
+      setSavingWalletPolicy(false);
     }
   }
 
@@ -1471,6 +1515,172 @@ export default function Settings() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
             <Button type="submit" variant="primary" size="md" loading={savingRoutinePolicy} style={{ padding: '10px 24px', fontWeight: 700 }}>
               Save Routine Policy & Guardrails
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      {/* Work Wallet Engine Card */}
+      <Card
+        title="Work Wallet Engine & Virtual Currency"
+        icon={Wallet}
+        subtitle="Self-motivation virtual currency rewarding real work and penalizing scheduled gaps. Zero real financial value."
+      >
+        <form onSubmit={handleSaveWalletPolicy} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {walletPolicy?.pendingEffectiveDate && (
+            <div style={{
+              padding: '12px 16px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid var(--gold-primary)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px',
+              color: 'var(--text-main)'
+            }}>
+              <strong>Pending Policy Loosening:</strong> Relaxed rates take effect on <strong>{walletPolicy.pendingEffectiveDate}</strong> (start of next local day).
+            </div>
+          )}
+
+          {/* Effective Daily Target & Earning Cap Display */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '14px',
+            padding: '16px',
+            background: 'var(--surface-subtle)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-color)'
+          }}>
+            <div>
+              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                Effective Daily Target
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#38BDF8', margin: '4px 0' }}>
+                {walletSettlement?.dailyTargetMinutes || 0} mins
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                Derived from active windows minus excused breaks
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                Daily Earning Cap
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#10B981', margin: '4px 0' }}>
+                ₹{((((walletSettlement?.dailyTargetMinutes || 0) * (walletPolicy?.earnRatePaisePerMin || 100)) +
+                  (walletPolicy?.overtimeMode !== 'none' ? (walletPolicy?.overtimeCapMinutes || 0) * (walletPolicy?.overtimeMode === 'half_rate' ? Math.floor((walletPolicy?.earnRatePaisePerMin || 100) / 2) : (walletPolicy?.earnRatePaisePerMin || 100)) : 0)) / 100).toFixed(0)}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                Maximum daily earning based on target and overtime cap
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+            <Field label="Earn Rate (Paise / minute)" hint="100 paise = 1 INR / min">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.earnRatePaisePerMin || 100}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, earnRatePaisePerMin: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Penalty Rate (Paise / unworked min)" hint="Deducted for unworked schedule gaps">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.penaltyRatePaisePerMin || 100}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, penaltyRatePaisePerMin: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Overtime Mode" hint="Rewards for work outside scheduled windows">
+              <Select
+                value={walletPolicy.overtimeMode || 'none'}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, overtimeMode: e.target.value })}
+              >
+                <option value="none">None (0 paise earned)</option>
+                <option value="half_rate">Half Rate (50% earning rate)</option>
+                <option value="full_rate">Full Rate (100% earning rate)</option>
+              </Select>
+            </Field>
+
+            <Field label="Overtime Cap (Minutes)" hint="Max overtime minutes eligible for earnings">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.overtimeCapMinutes || 0}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, overtimeCapMinutes: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Daily Break Allowance (Minutes)" hint="Excused break time per day">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.dailyBreakAllowanceMinutes || 90}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, dailyBreakAllowanceMinutes: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Monthly Leave Allowance (Days)" hint="Paid leave days per month">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.monthlyLeaveAllowanceDays || 2}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, monthlyLeaveAllowanceDays: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Min Daily Personal Time (Minutes)" hint="Protected non-work personal time (default 120m)">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.minDailyPersonalMinutes !== undefined ? walletPolicy.minDailyPersonalMinutes : 120}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, minDailyPersonalMinutes: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Max Daily Manual Minutes" hint="Ceiling for manual session entries">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.maxDailyManualMinutes || 60}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, maxDailyManualMinutes: Number(e.target.value) })}
+              />
+            </Field>
+          </div>
+
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(walletPolicy.floorEnabled)}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, floorEnabled: e.target.checked })}
+              />
+              <span>Enable Balance Floor (Penalties will not breach floor)</span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(walletPolicy.idleCheckEnabled)}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, idleCheckEnabled: e.target.checked })}
+              />
+              <span>Enable 10-Minute Idle Check & Countdown Watchdog</span>
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <Button type="submit" variant="primary" size="md" loading={savingWalletPolicy} style={{ padding: '10px 24px', fontWeight: 700 }}>
+              Save Work Wallet Policy
             </Button>
           </div>
         </form>

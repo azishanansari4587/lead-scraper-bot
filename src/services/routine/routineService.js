@@ -16,6 +16,52 @@ const FollowUp = require('../../models/FollowUp');
 const UserSettings = require('../../models/UserSettings');
 const logger = require('../../config/logger');
 
+const WORK_CATEGORIES = new Set([
+  'deep_work',
+  'admin',
+  'sales_outreach',
+  'client_calls',
+  'marketing'
+]);
+
+const NON_WORK_CATEGORIES = new Set([
+  'sleep',
+  'family',
+  'meal',
+  'meals',
+  'rest',
+  'health',
+  'fitness',
+  'exercise',
+  'personal',
+  'learning',
+  'other'
+]);
+
+function getCategoryCountsAsWorkDefault(category) {
+  if (!category) return false;
+  return WORK_CATEGORIES.has(category.toLowerCase().trim());
+}
+
+function resolveCountsAsWork(explicitFlag, category) {
+  if (explicitFlag === true) return true;
+  if (explicitFlag === false) return false;
+  // Missing flag: Never treat a missing flag on a non-work category as work
+  return getCategoryCountsAsWorkDefault(category);
+}
+
+let walletService = null;
+function getWalletService() {
+  if (!walletService) {
+    try {
+      walletService = require('../wallet/walletService');
+    } catch {
+      // Wallet service optional in isolated tests
+    }
+  }
+  return walletService;
+}
+
 class RoutineService {
   /**
    * Helper: compute user local date string YYYY-MM-DD
@@ -537,6 +583,7 @@ class RoutineService {
 
   /**
    * One-tap Start entry (Amendment 6: in_progress state)
+   * Amendment 5: Auto-start WorkSession if block.countsAsWork !== false and category is work-related
    */
   async startEntry(userId, entryId) {
     const entry = await RoutineEntry.findOne({ where: { id: entryId, userId } });
@@ -547,11 +594,40 @@ class RoutineService {
       actualStart: entry.actualStart || now,
       status: 'in_progress'
     });
+
+    try {
+      let explicitFlag = null;
+      let category = entry.category || '';
+      if (entry.blockId) {
+        const block = await RoutineBlock.findOne({ where: { id: entry.blockId, userId } });
+        if (block) {
+          explicitFlag = block.countsAsWork;
+          category = block.category || category;
+        }
+      }
+      const shouldCount = resolveCountsAsWork(explicitFlag, category);
+      if (shouldCount) {
+        const ws = getWalletService();
+        if (ws) {
+          await ws.startSession(userId, {
+            source: 'routine_entry',
+            linkedRoutineEntryId: entry.id,
+            linkedTaskId: entry.linkedTaskId,
+            note: `Routine: ${entry.title}`,
+            nowUtc: now
+          });
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err.message, entryId }, 'Wallet session auto-start skipped or failed');
+    }
+
     return entry;
   }
 
   /**
    * One-tap Done entry with explicit Task sync (Amendment 2)
+   * Amendment 5: Auto-stops running WorkSession (never backdate)
    */
   async doneEntry(userId, entryId, options = {}) {
     const { completeLinkedTask = false, note } = options;
@@ -572,6 +648,19 @@ class RoutineService {
       if (task && task.status !== 'done') {
         await task.update({ status: 'done', completedAt: now });
       }
+    }
+
+    // Auto-stop active WorkSession if linked to this entry
+    try {
+      const ws = getWalletService();
+      if (ws) {
+        const state = await ws.getWalletState(userId, { nowUtc: now });
+        if (state?.state?.activeSession?.linkedRoutineEntryId === entry.id) {
+          await ws.stopSession(userId, { sessionId: state.state.activeSession.id, nowUtc: now });
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err.message, entryId }, 'Wallet session auto-stop failed');
     }
 
     return entry;
@@ -922,4 +1011,10 @@ class RoutineService {
   }
 }
 
-module.exports = new RoutineService();
+const routineServiceInstance = new RoutineService();
+routineServiceInstance.resolveCountsAsWork = resolveCountsAsWork;
+routineServiceInstance.getCategoryCountsAsWorkDefault = getCategoryCountsAsWorkDefault;
+routineServiceInstance.WORK_CATEGORIES = WORK_CATEGORIES;
+routineServiceInstance.NON_WORK_CATEGORIES = NON_WORK_CATEGORIES;
+
+module.exports = routineServiceInstance;

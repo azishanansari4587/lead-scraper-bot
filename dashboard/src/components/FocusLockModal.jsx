@@ -207,9 +207,10 @@ export default function FocusLockModal() {
               {lockedEntry.plannedStart} - {lockedEntry.plannedEnd}
             </Badge>
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', display: 'flex', gap: '12px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', display: 'flex', gap: '12px', alignItems: 'center' }}>
             <span>Category: <strong style={{ color: 'var(--gold-primary)' }}>{lockedEntry.category}</strong></span>
             {lockedEntry.carryCount > 0 && <span>Carried {lockedEntry.carryCount}x</span>}
+            <span style={{ color: 'var(--danger)', fontWeight: 600 }}>• Work Wallet: Gap Penalty Active</span>
           </div>
         </div>
 

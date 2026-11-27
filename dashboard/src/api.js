@@ -320,5 +320,31 @@ export const api = {
   updateRoutinePolicy: (payload) => fetchJson('/routine/policy', { method: 'PATCH', body: JSON.stringify(payload) }),
   emergencyExitFocusLock: (reason) => fetchJson('/routine/policy/emergency-exit', { method: 'POST', body: JSON.stringify({ reason }) }),
   createPartnerInvite: (username) => fetchJson('/routine/partner/invite', { method: 'POST', body: JSON.stringify({ username }) }),
-  stopPartnerSharing: () => fetchJson('/routine/partner/stop', { method: 'POST' })
+  stopPartnerSharing: () => fetchJson('/routine/partner/stop', { method: 'POST' }),
+
+  // Work Wallet Engine API
+  getWalletState: (fastClock = 1) => fetchJson(`/wallet/state${fastClock > 1 ? `?fastClock=${fastClock}` : ''}`),
+  startWalletSession: (payload) => fetchJson('/wallet/session/start', { method: 'POST', body: JSON.stringify(payload) }),
+  stopWalletSession: (sessionId) => fetchJson('/wallet/session/stop', { method: 'POST', body: JSON.stringify({ sessionId }) }),
+  sendWalletHeartbeat: (sessionId, isActive = true) => fetchJson('/wallet/session/heartbeat', { method: 'POST', body: JSON.stringify({ sessionId, isActive }) }),
+  addManualWalletSession: (payload) => fetchJson('/wallet/session/manual', { method: 'POST', body: JSON.stringify(payload) }),
+  toggleWalletBreak: (action = 'toggle') => fetchJson('/wallet/break/toggle', { method: 'POST', body: JSON.stringify({ action }) }),
+  logWalletLeave: (payload) => fetchJson('/wallet/leave', { method: 'POST', body: JSON.stringify(payload) }),
+  toggleWalletPause: (isPaused) => fetchJson('/wallet/pause', { method: 'POST', body: JSON.stringify({ isPaused }) }),
+  getWalletLedger: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return fetchJson(`/wallet/ledger${q ? `?${q}` : ''}`);
+  },
+  getWalletAnalytics: () => fetchJson('/wallet/analytics'),
+  getWalletSchedules: () => fetchJson('/wallet/schedules'),
+  createWalletSchedule: (payload) => fetchJson('/wallet/schedules', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteWalletSchedule: (id) => fetchJson(`/wallet/schedules/${id}`, { method: 'DELETE' }),
+  getWalletRewards: () => fetchJson('/wallet/rewards'),
+  createWalletReward: (payload) => fetchJson('/wallet/rewards', { method: 'POST', body: JSON.stringify(payload) }),
+  redeemWalletReward: (rewardId) => fetchJson(`/wallet/rewards/${rewardId}/redeem`, { method: 'POST' }),
+  refundWalletReward: (ledgerEntryId) => fetchJson(`/wallet/rewards/redeem/${ledgerEntryId}/refund`, { method: 'POST' }),
+  getWalletPolicy: () => fetchJson('/wallet/policy'),
+  updateWalletPolicy: (payload) => fetchJson('/wallet/policy', { method: 'PATCH', body: JSON.stringify(payload) }),
+  acceptSuggestedWork: (payload) => fetchJson('/wallet/suggested-work/accept', { method: 'POST', body: JSON.stringify(payload) }),
+  dismissSuggestedWork: () => fetchJson('/wallet/suggested-work/dismiss', { method: 'POST' })
 };

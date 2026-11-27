@@ -32,6 +32,15 @@ const RoutineTemplate = require('./RoutineTemplate');
 const RoutineBlock = require('./RoutineBlock');
 const RoutineEntry = require('./RoutineEntry');
 const RoutinePolicy = require('./RoutinePolicy');
+const WalletPolicy = require('./WalletPolicy');
+const WalletState = require('./WalletState');
+const WorkSchedule = require('./WorkSchedule');
+const WorkWindow = require('./WorkWindow');
+const WorkSession = require('./WorkSession');
+const WalletBreak = require('./WalletBreak');
+const WalletLeave = require('./WalletLeave');
+const WalletLedgerEntry = require('./WalletLedgerEntry');
+const WalletReward = require('./WalletReward');
 
 // Associations (idempotent guard for multi-import/test environments)
 if (!Lead.associations?.calls) {
@@ -171,6 +180,42 @@ if (!RoutineEntry.associations?.linkedTask) {
   RoutineEntry.belongsTo(Task, { foreignKey: 'linkedTaskId', as: 'linkedTask' });
 }
 
+// Work Wallet Associations
+if (!WorkSchedule.associations?.windows) {
+  WorkSchedule.hasMany(WorkWindow, { foreignKey: 'scheduleId', as: 'windows', onDelete: 'CASCADE' });
+}
+if (!WorkWindow.associations?.schedule) {
+  WorkWindow.belongsTo(WorkSchedule, { foreignKey: 'scheduleId', as: 'schedule' });
+}
+
+if (!Task.associations?.workSessions) {
+  Task.hasMany(WorkSession, { foreignKey: 'linkedTaskId', as: 'workSessions', onDelete: 'SET NULL' });
+}
+if (!WorkSession.associations?.task) {
+  WorkSession.belongsTo(Task, { foreignKey: 'linkedTaskId', as: 'task' });
+}
+
+if (!RoutineEntry.associations?.workSessions) {
+  RoutineEntry.hasMany(WorkSession, { foreignKey: 'linkedRoutineEntryId', as: 'workSessions', onDelete: 'SET NULL' });
+}
+if (!WorkSession.associations?.routineEntry) {
+  WorkSession.belongsTo(RoutineEntry, { foreignKey: 'linkedRoutineEntryId', as: 'routineEntry' });
+}
+
+if (!WorkSession.associations?.ledgerEntries) {
+  WorkSession.hasMany(WalletLedgerEntry, { foreignKey: 'sessionId', as: 'ledgerEntries', onDelete: 'SET NULL' });
+}
+if (!WalletLedgerEntry.associations?.session) {
+  WalletLedgerEntry.belongsTo(WorkSession, { foreignKey: 'sessionId', as: 'session' });
+}
+
+if (!WorkWindow.associations?.ledgerEntries) {
+  WorkWindow.hasMany(WalletLedgerEntry, { foreignKey: 'windowId', as: 'ledgerEntries', onDelete: 'SET NULL' });
+}
+if (!WalletLedgerEntry.associations?.window) {
+  WalletLedgerEntry.belongsTo(WorkWindow, { foreignKey: 'windowId', as: 'window' });
+}
+
 const models = {
   sequelize,
   Lead,
@@ -205,7 +250,16 @@ const models = {
   RoutineTemplate,
   RoutineBlock,
   RoutineEntry,
-  RoutinePolicy
+  RoutinePolicy,
+  WalletPolicy,
+  WalletState,
+  WorkSchedule,
+  WorkWindow,
+  WorkSession,
+  WalletBreak,
+  WalletLeave,
+  WalletLedgerEntry,
+  WalletReward
 };
 
 module.exports = models;

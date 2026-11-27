@@ -13,7 +13,7 @@ const ReminderLog = sequelize.define('ReminderLog', {
     index: true
   },
   reminderType: {
-    type: DataTypes.ENUM('morning_brief', 'evening_nudge', 'event_reminder'),
+    type: DataTypes.STRING(50),
     allowNull: false
   },
   referenceId: {
@@ -21,7 +21,7 @@ const ReminderLog = sequelize.define('ReminderLog', {
     allowNull: false
   },
   channel: {
-    type: DataTypes.ENUM('telegram', 'email', 'both'),
+    type: DataTypes.STRING(20),
     defaultValue: 'telegram'
   },
   sentAt: {

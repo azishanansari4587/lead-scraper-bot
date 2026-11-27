@@ -1,37 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import { ToastProvider } from './components/ui/Toast';
 import { ErrorBoundary } from './components/ui';
 
-import Today from './pages/Today';
-import Tasks from './pages/Tasks';
-import Routine from './pages/Routine';
-import RoutineReview from './pages/RoutineReview';
-import Leads from './pages/Leads';
-import Calls from './pages/Calls';
-import Notes from './pages/Notes';
-import Calendar from './pages/Calendar';
-import Marketing from './pages/Marketing';
-import Google from './pages/Google';
-import Reports from './pages/Reports';
-import SearchScrape from './pages/SearchScrape';
-import PresetsSchedules from './pages/PresetsSchedules';
-import Sources from './pages/Sources';
-import Exports from './pages/Exports';
-import Settings from './pages/Settings';
-import BulkSend from './pages/BulkSend';
-import Mindmap from './pages/Mindmap';
-import Mindmaps from './pages/Mindmaps';
-import MindmapEditor from './pages/MindmapEditor';
+// Lazy-loaded routes for optimal bundle code-splitting
+const Today = lazy(() => import('./pages/Today'));
+const Tasks = lazy(() => import('./pages/Tasks'));
+const Routine = lazy(() => import('./pages/Routine'));
+const RoutineReview = lazy(() => import('./pages/RoutineReview'));
+const Leads = lazy(() => import('./pages/Leads'));
+const Calls = lazy(() => import('./pages/Calls'));
+const Notes = lazy(() => import('./pages/Notes'));
+const Calendar = lazy(() => import('./pages/Calendar'));
+const Marketing = lazy(() => import('./pages/Marketing'));
+const Google = lazy(() => import('./pages/Google'));
+const Reports = lazy(() => import('./pages/Reports'));
+const SearchScrape = lazy(() => import('./pages/SearchScrape'));
+const PresetsSchedules = lazy(() => import('./pages/PresetsSchedules'));
+const Sources = lazy(() => import('./pages/Sources'));
+const Exports = lazy(() => import('./pages/Exports'));
+const Settings = lazy(() => import('./pages/Settings'));
+const BulkSend = lazy(() => import('./pages/BulkSend'));
+const Mindmap = lazy(() => import('./pages/Mindmap'));
+const Mindmaps = lazy(() => import('./pages/Mindmaps'));
+const MindmapEditor = lazy(() => import('./pages/MindmapEditor'));
+const WalletPage = lazy(() => import('./pages/Wallet'));
 
 import { api } from './api';
-import GateGuard from './components/GateGuard';
+// import GateGuard from './components/GateGuard'; // Mindset Gate temporarily commented out
 import FocusLockModal from './components/FocusLockModal';
+import IdleCheckModal from './components/IdleCheckModal';
 
 const ROUTE_TITLES = {
   '/today': 'Today Command Center',
+  '/wallet': 'Work Wallet Hub',
   '/routine': 'CEO Routine Engine',
   '/routine/review': 'Routine Weekly Review & Analytics',
   '/tasks': 'Tasks & Priority MITs',
@@ -85,34 +89,42 @@ function DashboardLayout() {
         />
 
         <FocusLockModal />
+        <IdleCheckModal />
 
         <main id="main-content">
           <ErrorBoundary>
-            <Routes>
-              <Route path="/" element={<Navigate to="/today" replace />} />
-              <Route path="/today" element={<Today />} />
-              <Route path="/routine" element={<Routine />} />
-              <Route path="/routine/review" element={<RoutineReview />} />
-              <Route path="/tasks" element={<Tasks />} />
-              <Route path="/leads" element={<Leads onExportRequested={() => navigate('/exports')} />} />
-              <Route path="/calls" element={<Calls />} />
-              <Route path="/notes" element={<Notes />} />
-              <Route path="/calendar" element={<Calendar />} />
-              <Route path="/marketing" element={<Marketing />} />
-              <Route path="/growth-mindmap" element={<Mindmap />} />
-              <Route path="/mindmap" element={<Mindmap />} />
-              <Route path="/mindmaps" element={<Mindmaps />} />
-              <Route path="/mindmaps/:id" element={<MindmapEditor />} />
-              <Route path="/google" element={<Google />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/search" element={<SearchScrape onNavigate={navigate} />} />
-              <Route path="/bulk" element={<BulkSend />} />
-              <Route path="/presets" element={<PresetsSchedules onRunPreset={() => navigate('/search')} />} />
-              <Route path="/sources" element={<Sources />} />
-              <Route path="/exports" element={<Exports />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/today" replace />} />
-            </Routes>
+            <Suspense fallback={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--text-tertiary)', fontSize: '14px', gap: '8px' }}>
+                <span className="spinner" /> Loading Command Center module...
+              </div>
+            }>
+              <Routes>
+                <Route path="/" element={<Navigate to="/today" replace />} />
+                <Route path="/today" element={<Today />} />
+                <Route path="/wallet" element={<WalletPage />} />
+                <Route path="/routine" element={<Routine />} />
+                <Route path="/routine/review" element={<RoutineReview />} />
+                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/leads" element={<Leads onExportRequested={() => navigate('/exports')} />} />
+                <Route path="/calls" element={<Calls />} />
+                <Route path="/notes" element={<Notes />} />
+                <Route path="/calendar" element={<Calendar />} />
+                <Route path="/marketing" element={<Marketing />} />
+                <Route path="/growth-mindmap" element={<Mindmap />} />
+                <Route path="/mindmap" element={<Mindmap />} />
+                <Route path="/mindmaps" element={<Mindmaps />} />
+                <Route path="/mindmaps/:id" element={<MindmapEditor />} />
+                <Route path="/google" element={<Google />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/search" element={<SearchScrape onNavigate={navigate} />} />
+                <Route path="/bulk" element={<BulkSend />} />
+                <Route path="/presets" element={<PresetsSchedules onRunPreset={() => navigate('/search')} />} />
+                <Route path="/sources" element={<Sources />} />
+                <Route path="/exports" element={<Exports />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<Navigate to="/today" replace />} />
+              </Routes>
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
@@ -124,9 +136,10 @@ export default function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
-        <GateGuard>
+        {/* Mindset Gate temporarily commented out */}
+        {/* <GateGuard> */}
           <DashboardLayout />
-        </GateGuard>
+        {/* </GateGuard> */}
       </BrowserRouter>
     </ToastProvider>
   );

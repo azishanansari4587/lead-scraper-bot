@@ -103,6 +103,10 @@ node src/scripts/testLocalMysqlMigrations.js
    Inserted BulkSendLog ID 1 with status="simulated"
 ✅ Smoke Test 3 PASSED: BulkSendLog supports status="simulated" on MySQL.
 
+💼 Smoke Test 6: Testing Work Wallet row locking (SELECT ... FOR UPDATE) & unique constraint...
+   Verified parallel workers: exactly 1 ledger entry posted for segmentKey="seg_test_...".
+✅ Smoke Test 6 PASSED: MySQL SELECT ... FOR UPDATE and unique constraint guarantee zero double-posting.
+
 🧹 Cleaning up test artifacts...
 ✅ Cleanup complete.
 
@@ -113,7 +117,16 @@ node src/scripts/testLocalMysqlMigrations.js
 
 ---
 
-## 4. Teardown
+## 4. Work Wallet Concurrency & Row-Level Locking Verification
+
+In Work Wallet settlements, concurrency safety across parallel tabs or simultaneous `/api/wallet/state` calls is guaranteed via a **defense-in-depth triple layer**:
+1. **Per-User In-Process Mutex Lock**: Serializes incoming requests per `userId` within Node.js.
+2. **MySQL Row-Level Lock (`SELECT ... FOR UPDATE`)**: Inside the database transaction `t`, Sequelize executes `await WalletState.findOne({ where: { userId }, transaction: t, lock: t.LOCK.UPDATE });`. On MySQL (InnoDB), this places an exclusive row lock on the user's `WalletStates` record, forcing any concurrent transactions on another worker or process to wait until commit/rollback.
+3. **Database Unique Constraint**: `WalletLedgerEntries` enforces `UNIQUE (userId, date, segmentKey)`. Even if two parallel transactions race past the application tier, MySQL's unique constraint causes duplicate segment inserts to fail gracefully via `findOrCreate`, making double-posting physically impossible.
+
+---
+
+## 5. Teardown
 
 When testing is complete, destroy the local test container:
 

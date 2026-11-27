@@ -12,6 +12,9 @@ const Lead = require('../../models/Lead');
 const MindmapNode = require('../../models/MindmapNode');
 const Mindmap = require('../../models/Mindmap');
 const RoutineEntry = require('../../models/RoutineEntry');
+const WorkSchedule = require('../../models/WorkSchedule');
+const WorkWindow = require('../../models/WorkWindow');
+const walletIntervalMath = require('../wallet/walletIntervalMath');
 const logger = require('../../config/logger');
 
 class CalendarService {
@@ -257,6 +260,55 @@ class CalendarService {
       };
     });
 
+    // 8. Format WorkWindows (Work Wallet Engine)
+    const formattedWorkWindows = [];
+    try {
+      const workSchedules = await WorkSchedule.findAll({
+        where: { userId, isActive: true },
+        include: [{ model: WorkWindow, as: 'windows', where: { isActive: true }, required: false }]
+      });
+
+      if (workSchedules.length > 0) {
+        const cur = new Date(startFrom);
+        while (cur <= endTo) {
+          const dateStr = cur.toISOString().slice(0, 10);
+          const dayOfWeek = cur.getUTCDay();
+
+          const activeSched = workSchedules.find((s) => {
+            if (s.travelStartDate && s.travelEndDate) {
+              return dateStr >= s.travelStartDate && dateStr <= s.travelEndDate;
+            }
+            const days = typeof s.assignedDays === 'string' ? JSON.parse(s.assignedDays || '[]') : s.assignedDays;
+            return Array.isArray(days) && days.includes(dayOfWeek);
+          }) || workSchedules.find((s) => s.isDefault) || workSchedules[0];
+
+          if (activeSched && activeSched.windows) {
+            for (const win of activeSched.windows) {
+              const { startAt, endAt } = walletIntervalMath.computeWindowInstants(dateStr, win.startTime, win.endTime, 'Asia/Dubai');
+              formattedWorkWindows.push({
+                id: `work_window_${win.id}_${dateStr}`,
+                rawId: win.id,
+                feedId: `work_window_${win.id}_${dateStr}`,
+                itemType: 'work_window',
+                title: `Work Window: ${win.startTime} - ${win.endTime}`,
+                startAt: startAt.toISOString(),
+                endAt: endAt.toISOString(),
+                allDay: false,
+                type: 'work_window',
+                category: 'work',
+                hasConflict: false,
+                conflicts: [],
+                color: '#10B981'
+              });
+            }
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err.message }, 'Failed to compute calendar work windows');
+    }
+
     // Merge and sort chronologically
     const allItems = [
       ...formattedEvents,
@@ -264,7 +316,8 @@ class CalendarService {
       ...formattedFollowUps,
       ...formattedPosts,
       ...formattedMindmapNodes,
-      ...formattedRoutineEntries
+      ...formattedRoutineEntries,
+      ...formattedWorkWindows
     ].sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
 
     return {

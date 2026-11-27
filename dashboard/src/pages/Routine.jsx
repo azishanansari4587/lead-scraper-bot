@@ -159,6 +159,7 @@ export default function Routine() {
   const [blockDays, setBlockDays] = useState([0, 1, 2, 3, 4, 5, 6]);
   const [blockIsMustDo, setBlockIsMustDo] = useState(false);
   const [blockIsProtected, setBlockIsProtected] = useState(false);
+  const [blockCountsAsWork, setBlockCountsAsWork] = useState(true);
   const [blockLinkedTaskId, setBlockLinkedTaskId] = useState('');
   const [blockNotes, setBlockNotes] = useState('');
   const [availableTasks, setAvailableTasks] = useState([]);
@@ -467,6 +468,7 @@ export default function Routine() {
         daysOfWeek: blockDays,
         isMustDo: blockIsMustDo,
         isProtected: blockIsProtected,
+        countsAsWork: Boolean(blockCountsAsWork),
         linkedTaskId: blockLinkedTaskId ? Number(blockLinkedTaskId) : null,
         notes: blockNotes.trim() || null
       };
@@ -507,6 +509,7 @@ export default function Routine() {
     setBlockDays(b.daysOfWeek ? JSON.parse(b.daysOfWeek) : [0, 1, 2, 3, 4, 5, 6]);
     setBlockIsMustDo(Boolean(b.isMustDo));
     setBlockIsProtected(Boolean(b.isProtected));
+    setBlockCountsAsWork(b.countsAsWork !== undefined ? Boolean(b.countsAsWork) : ['deep_work', 'sales', 'calls', 'team', 'admin'].includes(b.category));
     setBlockLinkedTaskId(b.linkedTaskId ? String(b.linkedTaskId) : '');
     setBlockNotes(b.notes || '');
     api.getTasks({ status: 'todo' }).then((res) => setAvailableTasks(res.tasks || [])).catch(() => {});
@@ -522,6 +525,7 @@ export default function Routine() {
     setBlockDays([0, 1, 2, 3, 4, 5, 6]);
     setBlockIsMustDo(false);
     setBlockIsProtected(false);
+    setBlockCountsAsWork(true);
     setBlockLinkedTaskId('');
     setBlockNotes('');
     api.getTasks({ status: 'todo' }).then((res) => setAvailableTasks(res.tasks || [])).catch(() => {});
@@ -1956,9 +1960,27 @@ export default function Routine() {
                 <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
                   Category & Purpose
                 </label>
-                <span style={{ fontSize: '11px', color: 'var(--gold-primary)' }}>
-                  {CATEGORIES.find((c) => c.value === blockCategory)?.label}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    background: ['deep_work', 'sales', 'calls', 'team', 'admin'].includes(blockCategory)
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : 'rgba(148, 163, 184, 0.15)',
+                    color: ['deep_work', 'sales', 'calls', 'team', 'admin'].includes(blockCategory)
+                      ? '#10B981'
+                      : '#94A3B8'
+                  }}>
+                    {['deep_work', 'sales', 'calls', 'team', 'admin'].includes(blockCategory)
+                      ? '✓ Counts as Work by default'
+                      : '○ Personal / Non-Work default'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--gold-primary)' }}>
+                    {CATEGORIES.find((c) => c.value === blockCategory)?.label}
+                  </span>
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
                 {CATEGORIES.map((cat) => {
@@ -1967,7 +1989,10 @@ export default function Routine() {
                   return (
                     <div
                       key={cat.value}
-                      onClick={() => setBlockCategory(cat.value)}
+                      onClick={() => {
+                        setBlockCategory(cat.value);
+                        setBlockCountsAsWork(['deep_work', 'sales', 'calls', 'team', 'admin'].includes(cat.value));
+                      }}
                       style={{
                         border: isSelected ? `2px solid ${cat.color}` : '1px solid var(--border-color)',
                         background: isSelected ? cat.bg : 'var(--surface-subtle)',
@@ -2324,6 +2349,54 @@ export default function Routine() {
                   </div>
                   <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', lineHeight: '1.3' }}>
                     Immune from enforcement, locking, or scoring penalties.
+                  </p>
+                </div>
+              </div>
+
+              {/* Work Wallet: Counts as Work Toggle */}
+              <div
+                onClick={() => setBlockCountsAsWork(!blockCountsAsWork)}
+                style={{
+                  border: blockCountsAsWork ? '2px solid #10B981' : '1px solid var(--border-color)',
+                  background: blockCountsAsWork ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface-subtle)',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: blockCountsAsWork ? 'rgba(16, 185, 129, 0.2)' : 'var(--surface-elevated)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#10B981',
+                  flexShrink: 0
+                }}>
+                  <Timer size={16} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, fontSize: '13px', color: blockCountsAsWork ? '#10B981' : 'var(--text-primary)' }}>
+                      Counts as Work (Work Wallet Timer)
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={blockCountsAsWork}
+                      onChange={() => {}}
+                      style={{ accentColor: '#10B981', pointerEvents: 'none' }}
+                    />
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', lineHeight: '1.3' }}>
+                    {['deep_work', 'sales', 'calls', 'team', 'admin'].includes(blockCategory)
+                      ? 'Category default: WORK. Auto-starts Work Wallet session on check-in to earn virtual points.'
+                      : 'Category default: PERSONAL / NON-WORK. Keep OFF for sleep, meals, rest, learning, or health.'}
                   </p>
                 </div>
               </div>

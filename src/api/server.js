@@ -137,8 +137,10 @@ const marketingRouter = require('./routes/marketing');
 const mindmapsRouter = require('./routes/mindmaps');
 const gateRouter = require('./routes/gate');
 const routineRouter = require('./routes/routine');
+const walletRouter = require('./routes/wallet');
 
 // Mount API routes
+app.use('/api/wallet', requireAuth, walletRouter);
 app.use('/api/routine', (req, res, next) => {
   if (req.path === '/partner/claim') return next();
   return requireAuth(req, res, next);

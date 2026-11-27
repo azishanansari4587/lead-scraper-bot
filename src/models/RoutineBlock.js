@@ -50,6 +50,11 @@ const RoutineBlock = sequelize.define('RoutineBlock', {
     allowNull: false,
     defaultValue: false
   },
+  countsAsWork: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
   linkedTaskId: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -77,6 +82,15 @@ const RoutineBlock = sequelize.define('RoutineBlock', {
     { fields: ['userId', 'category'] },
     { fields: ['linkedTaskId'] }
   ]
+});
+
+RoutineBlock.beforeValidate((block) => {
+  if (block.countsAsWork === undefined || block.countsAsWork === null) {
+    const cat = (block.category || '').toLowerCase().trim();
+    // admin, deep_work, sales_outreach, client_calls, marketing default to true
+    // learning, health, other, sleep, meals, rest, personal default to false
+    block.countsAsWork = ['deep_work', 'admin', 'sales_outreach', 'client_calls', 'marketing'].includes(cat);
+  }
 });
 
 module.exports = RoutineBlock;

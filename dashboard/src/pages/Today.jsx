@@ -26,6 +26,7 @@ import {
   CheckSquare,
   ChevronRight,
   ExternalLink,
+  Wallet,
   Network
 } from 'lucide-react';
 import { api } from '../api';
@@ -573,6 +574,73 @@ export default function Today({ onNavigate }) {
             Complete Evening Review →
           </Button>
         </div>
+      )}
+
+      {/* Work Wallet Summary Card */}
+      {data?.wallet?.state && (
+        <Card
+          style={{
+            marginBottom: '20px',
+            padding: '14px 18px',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(30, 41, 59, 0.7) 100%)',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            borderRadius: 'var(--radius-md)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Wallet size={20} color="var(--gold-primary, #f59e0b)" />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--gold-primary, #f59e0b)' }}>
+                    ₹{(Math.floor(data.wallet.state.balancePaise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </span>
+                  <Badge variant="gold">Work Wallet</Badge>
+                  {data.wallet.state.activeSession && (
+                    <Badge variant="success">Timer Active</Badge>
+                  )}
+                </div>
+                <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Today Target: {(data.wallet.settlement?.workedInWindowMinutes || 0) + (data.wallet.settlement?.overtimeWorkedMinutes || 0)}m / {data.wallet.settlement?.dailyTargetMinutes || 0}m
+                  {data.wallet.settlement && ` • Base: +₹${Math.floor(data.wallet.settlement.baseEarnPaise / 100)}`}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {data.wallet.state.activeSession ? (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={async () => {
+                    await api.stopWalletSession(data.wallet.state.activeSession.id);
+                    toast.success('Session stopped and settled.');
+                    fetchData();
+                  }}
+                >
+                  Stop Work
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={async () => {
+                    await api.startWalletSession({ source: 'today_card' });
+                    toast.success('Work timer started!');
+                    fetchData();
+                  }}
+                >
+                  Start Work
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" onClick={() => navigate('/wallet')}>
+                Wallet Hub →
+              </Button>
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* CEO Routine: Now and Next Strip */}

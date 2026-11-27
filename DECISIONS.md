@@ -338,3 +338,55 @@ This document records all significant technical and design choices made during t
   - Single-pass indexed queries aggregate calls, emails, WhatsApps, and completed tasks during each routine block window.
   - Verified execution time under 15ms on 90-day historical datasets.
 
+## 23. Work Wallet Engine Architecture (Feature: Work Wallet)
+- **Virtual Self-Motivation Currency (Zero Real Money):**
+  - The Work Wallet is strictly a self-discipline motivation system using virtual points represented in minor currency units (paise). 100 paise = 1 INR / 1 virtual point.
+  - The UI, API, README, and export CSVs prominently state: *"Virtual self-motivation currency (points). Not real money."*
+  - Zero tracking or monitoring outside the application workspace.
+- **Integer Minor Unit Currency (No Float Drift):**
+  - All wallet balances, rates, and transactions are stored and computed strictly as integers in paise. No floating-point inaccuracies. Formatted in INR with Indian grouping (e.g. `₹12,430`).
+- **Session Liveness & Server Heartbeat (Amendment 1):**
+  - The client pings `POST /api/wallet/session/heartbeat` every 60 seconds with an active interaction flag.
+  - If no heartbeat is received for 3 minutes (180,000 ms), the server auto-stops the session at the timestamp of the last confirmed heartbeat.
+  - Capped at `maxSessionLengthMinutes` (default 480m / 8h). Sleeping laptops, closed browser tabs, or server restarts cannot keep earning.
+- **Idle Check & Settlement Consistency (Amendment 2):**
+  - Client-side watchdog monitors keyboard and mouse activity. After 10 minutes of inactivity while a timer is running, a modal prompts with a 2-minute countdown (120s): *"Are you still working?"*.
+  - If the user confirms, the timer resumes; if the 2-minute countdown expires without a response, the session is cleanly stopped and the 10 idle minutes are reversed via an explicit `type: 'adjustment'` ledger entry (`reversal_session_{id}`).
+- **Concurrency & State Separation (Amendment 3):**
+  - `WalletState` (userId, balancePaise, settledUpTo, activeSessionId, activeBreakId, isPaused) is completely separated from `WalletPolicy`.
+  - Settlement executes inside an in-memory per-user mutex lock queue and a database transaction.
+  - Unique composite index on `(userId, date, segmentKey)` on `WalletLedgerEntries` guarantees that parallel requests or multiple open browser tabs cannot double-post ledger entries.
+- **Derived Daily Target & Health Constraints (Amendment 4):**
+  - `dailyTargetMinutes` is derived directly as the sum of effective window minutes (`windows` minus excused breaks, quiet hours, and protected blocks), not an arbitrary independent number.
+  - On save, schedules are validated: total work cannot exceed 1440 minus `minDailySleepMinutes` (default 390m = 6.5h) minus `minDailyMealMinutes` (default 60m = 1h). Total work exceeding 990m (16.5h) is rejected with HTTP 400. Overlaps with quiet hours trigger descriptive warnings.
+- **CEO Routine Engine Integration (Amendment 5):**
+  - Added `countsAsWork` boolean flag (default `true`) to `RoutineBlocks`.
+  - Routine check-in `start` auto-starts a `WorkSession` with `source: 'routine_entry'` if `block.countsAsWork !== false` and category is work-related. Non-work categories (`sleep`, `meal`, `family`, `rest`, `health`, `fitness`, `personal`) never start sessions.
+  - Routine `done` cleanly stops any active session linked to that block. A routine `done` **never creates a backdated session**.
+- **Ledger Segment Size & Performance (Amendment 6):**
+  - Ledger writes one entry per contiguous settled segment (with a `minutes` field), keeping row counts minimal rather than writing one row per minute.
+  - Unique `segmentKey` format: `seg_work_{date}_{start}_{end}`, `seg_ot_{date}_{start}_{end}`, `seg_pen_{date}_{start}_{end}`.
+  - Verified execution time for state calculation is under 300ms on a 1-year dataset.
+- **Break Management & Overage (Amendment 7):**
+  - Starting a break cleanly terminates any running work session.
+  - Breaks within `dailyBreakAllowanceMinutes` (default 90m) are masked as excused time. Breaks exceeding the allowance are unexcused and penalize if they fall inside scheduled work windows.
+- **Illness, Leave & Vacation Pauses (Amendment 8):**
+  - `WalletLeave` tracks leave days. Sick leave is permitted to exceed the monthly allowance with a reason, flagged as `isExceedingAllowance = true`.
+  - "Pause wallet" mode (`isPaused: true`) suspends earnings and penalties during travel or holiday periods.
+- **Floor Protection & Trimming (Amendment 9):**
+  - `allowNegative` and `floorEnabled` are independently configurable.
+  - When `floorEnabled` is true, penalties that would push the balance below `walletFloorPaise` are constrained, and the trimmed difference is recorded as `type: 'floor_trim'`.
+- **Policy Changes: Tightening Immediate, Loosening Next Day (Amendment 10):**
+  - Tightening rules (increasing penalties, lowering earnings, decreasing break allowances, raising floor) takes effect immediately.
+  - Loosening rules queues in `pendingPolicyJson` with `pendingEffectiveDate` set to tomorrow's local calendar day to safeguard self-discipline.
+- **Calendar Work Windows & Visibility (Amendment 11):**
+  - Work windows are queried and mapped into `calendarService.getMergedCalendar` with `itemType: 'work_window'`, clearly distinguishing scheduled work windows from rhythm habit blocks.
+- **Overtime Modes & Cap Trimming (Amendment 12):**
+  - Modes: `none` (0 points), `half_rate` (50% of earn rate), `full_rate` (100% of earn rate). Overtime beyond `overtimeCapMinutes` is trimmed as `cap_trim`.
+- **Rewards Catalog & Refunds (Amendment 13):**
+  - Virtual rewards can be redeemed if the user has sufficient points above the floor.
+  - Redemption entries can be refunded via `POST /api/wallet/rewards/redeem/:id/refund`, creating a `type: 'reward_refund'` ledger entry that restores points.
+- **Audit Privacy & Secure CSV Exports (Amendment 14):**
+  - `AuditLog` records IDs and field names only, strictly excluding sensitive note or reason strings.
+  - CSV export features a UTF-8 BOM (`\uFEFF`) and defends against spreadsheet formula injection by prefixing `=, +, -, @` with a leading apostrophe.
+
