@@ -125,6 +125,22 @@
   /* Transitions */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Core Theme Aliases & Routine Engine Tokens */
+  --text-primary: var(--text-main);
+  --text-secondary: var(--text-muted);
+  --text-tertiary: var(--text-dim);
+  --surface-color: var(--bg-surface);
+  --surface-subtle: var(--bg-surface-elevated);
+  --surface-elevated: #1E2B4A;
+  --surface-card: var(--bg-surface);
+  --border-color: var(--border-subtle);
+  --primary-color: var(--gold-primary);
+  --gold-accent: var(--gold-primary);
+  --emerald-accent: var(--emerald);
+  --rose-accent: var(--rose);
+  --blue-accent: var(--sky);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
 }
 
 /* ==========================================================================
@@ -171,6 +187,22 @@
   --info-bg: rgba(2, 132, 199, 0.12);
   --info-border: rgba(2, 132, 199, 0.3);
   --info-text: #075985;
+
+  /* Core Theme Aliases & Routine Engine Tokens */
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-tertiary: #64748B;
+  --surface-color: #FFFFFF;
+  --surface-subtle: #F1F5F9;
+  --surface-elevated: #E2E8F0;
+  --surface-card: #FFFFFF;
+  --border-color: rgba(15, 23, 42, 0.12);
+  --primary-color: #D97706;
+  --gold-accent: #D97706;
+  --emerald-accent: #059669;
+  --rose-accent: #E11D48;
+  --blue-accent: #0284C7;
+  --shadow-lg: 0 10px 25px -5px rgba(15, 23, 42, 0.1);
 
   --shadow-card: 0 2px 10px rgba(15, 23, 42, 0.06);
   --shadow-drawer: -4px 0 25px rgba(15, 23, 42, 0.12);
@@ -698,6 +730,36 @@ h4 { font-size: var(--font-base); font-weight: 600; }
   color: var(--text-main);
 }
 
+.btn-outline {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border-strong);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--bg-surface-elevated);
+  border-color: var(--gold-primary);
+  color: var(--gold-primary);
+}
+
+.btn-tab {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.btn-tab:hover {
+  color: var(--text-heading);
+}
+
+.btn-tab.active {
+  background: var(--surface-elevated);
+  color: var(--gold-primary);
+  font-weight: 700;
+}
+
 .btn-danger {
   background: var(--danger-bg);
   color: var(--danger-text);
@@ -751,12 +813,12 @@ h4 { font-size: var(--font-base); font-weight: 600; }
 /* Global Text Selection Luxury Styling */
 ::selection {
   background-color: var(--gold-primary) !important;
-  color: #090D16 !important;
+  color: var(--primary-contrast) !important;
 }
 
 ::-moz-selection {
   background-color: var(--gold-primary) !important;
-  color: #090D16 !important;
+  color: var(--primary-contrast) !important;
 }
 
 .form-error {
@@ -766,7 +828,7 @@ h4 { font-size: var(--font-base); font-weight: 600; }
 }
 
 .input, .select, .textarea, .form-input {
-  background: var(--bg-surface);
+  background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   color: var(--text-main);
   padding: 8px 12px;
@@ -781,7 +843,7 @@ h4 { font-size: var(--font-base); font-weight: 600; }
   border-color: var(--gold-primary);
   box-shadow: 0 0 0 2px var(--gold-glow);
   background: var(--bg-surface-elevated) !important;
-  color: #FFFFFF !important;
+  color: var(--text-heading) !important;
 }
 
 .input::placeholder, .textarea::placeholder, .form-input::placeholder {
@@ -793,13 +855,18 @@ select, .select {
   color-scheme: dark;
 }
 
+[data-theme="light"] select,
+[data-theme="light"] .select {
+  color-scheme: light !important;
+}
+
 select option, .select option {
-  background-color: #121A2D !important;
-  color: #F8FAFC !important;
+  background-color: var(--bg-surface) !important;
+  color: var(--text-main) !important;
 }
 
 select option:checked, .select option:checked {
-  background-color: #1E2B4A !important;
+  background-color: var(--bg-surface-elevated) !important;
   color: var(--gold-primary) !important;
 }
 
@@ -810,29 +877,36 @@ input[type="datetime-local"] {
   color-scheme: dark;
   font-family: inherit;
   font-variant-numeric: tabular-nums;
-  color: #F8FAFC !important;
+  color: var(--text-main) !important;
   cursor: pointer;
+}
+
+[data-theme="light"] input[type="date"],
+[data-theme="light"] input[type="time"],
+[data-theme="light"] input[type="datetime-local"] {
+  color-scheme: light !important;
+  color: var(--text-main) !important;
 }
 
 /* DateTime Edit Segments (Chromium WebKit) */
 input[type="date"]::-webkit-datetime-edit,
 input[type="time"]::-webkit-datetime-edit,
 input[type="datetime-local"]::-webkit-datetime-edit {
-  color: #F8FAFC !important;
+  color: var(--text-main) !important;
   padding: 2px 0;
 }
 
 input[type="date"]::-webkit-datetime-edit-fields-wrapper,
 input[type="time"]::-webkit-datetime-edit-fields-wrapper,
 input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
-  color: #F8FAFC !important;
+  color: var(--text-main) !important;
   background: transparent !important;
 }
 
 input[type="date"]::-webkit-datetime-edit-text,
 input[type="time"]::-webkit-datetime-edit-text,
 input[type="datetime-local"]::-webkit-datetime-edit-text {
-  color: #CBD5E1 !important;
+  color: var(--text-muted) !important;
   padding: 0 2px;
 }
 
@@ -848,7 +922,7 @@ input[type="datetime-local"]::-webkit-datetime-edit-year-field,
 input[type="datetime-local"]::-webkit-datetime-edit-hour-field,
 input[type="datetime-local"]::-webkit-datetime-edit-minute-field,
 input[type="datetime-local"]::-webkit-datetime-edit-ampm-field {
-  color: #F8FAFC !important;
+  color: var(--text-main) !important;
   background: transparent !important;
   padding: 1px 3px;
   border-radius: 3px;
@@ -869,7 +943,7 @@ input[type="datetime-local"]::-webkit-datetime-edit-hour-field:focus,
 input[type="datetime-local"]::-webkit-datetime-edit-minute-field:focus,
 input[type="datetime-local"]::-webkit-datetime-edit-ampm-field:focus {
   background-color: var(--gold-primary) !important;
-  color: #090D16 !important;
+  color: var(--primary-contrast) !important;
   outline: none !important;
 }
 
@@ -882,6 +956,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   padding: 3px;
   border-radius: 4px;
   transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="time"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: sepia(100%) saturate(300%) hue-rotate(5deg);
+  opacity: 0.75;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
@@ -901,7 +982,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   width: 100%;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  background: var(--bg-input);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
 }
 
@@ -930,7 +1011,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   padding: 9px 12px 9px 38px;
   background: transparent;
   border: none;
-  color: #FFFFFF !important;
+  color: var(--text-main) !important;
   font-size: 13px;
   font-weight: 600;
   outline: none;
@@ -943,7 +1024,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   outline: none;
   border: none;
   box-shadow: none;
-  color: #FFFFFF !important;
+  color: var(--text-heading) !important;
+}
+
+.luxury-time-input-wrap input::selection,
+.luxury-date-input-wrap input::selection,
+.form-input::selection,
+.input::selection {
+  background-color: var(--gold-primary) !important;
+  color: var(--primary-contrast) !important;
 }
 
 .luxury-time-input-wrap input::selection,
@@ -1140,10 +1229,30 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   border: 1px solid var(--border-subtle);
 }
 
-.badge-primary {
+.badge-primary,
+.badge-gold {
   background: var(--warning-bg);
   color: var(--gold-primary);
   border: 1px solid var(--border-accent);
+}
+
+.badge-secondary,
+.badge-subtle {
+  background: var(--bg-surface-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.badge-outline {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border-strong);
+}
+
+.badge-error {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid var(--danger-border);
 }
 
 /* Score Badges */

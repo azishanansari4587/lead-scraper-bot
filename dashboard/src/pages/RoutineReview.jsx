@@ -279,7 +279,7 @@ export default function RoutineReview() {
             <Card
               style={{
                 border: '1px solid rgba(245, 158, 11, 0.4)',
-                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(5, 7, 15, 0.8) 100%)',
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, var(--surface-subtle) 100%)',
                 padding: '20px'
               }}
             >

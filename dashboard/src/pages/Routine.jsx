@@ -1250,7 +1250,7 @@ export default function Routine() {
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: isSelected ? cat.color : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isSelected ? '#000' : cat.color, flexShrink: 0 }}>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: isSelected ? cat.color : 'var(--surface-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isSelected ? (cat.value === 'deep_work' ? '#000000' : '#FFFFFF') : cat.color, flexShrink: 0 }}>
                         <IconComp size={14} />
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -1375,7 +1375,7 @@ export default function Routine() {
                 transition: 'all 0.15s ease'
               }}
             >
-              <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: unplannedIsMustDo ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold-primary)' }}>
+              <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: unplannedIsMustDo ? 'rgba(245, 158, 11, 0.2)' : 'var(--surface-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold-primary)' }}>
                 <Zap size={16} />
               </div>
               <div style={{ flex: 1 }}>
@@ -1520,7 +1520,7 @@ export default function Routine() {
               <Button type="button" variant="ghost" onClick={() => setSkipModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" style={{ background: 'var(--gold-primary)', color: '#000', fontWeight: 700 }}>
+              <Button type="submit" variant="primary" style={{ background: 'var(--gold-primary)', color: 'var(--primary-contrast)', fontWeight: 700 }}>
                 Confirm Skip
               </Button>
             </div>
@@ -1603,7 +1603,7 @@ export default function Routine() {
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: isSelected ? opt.color : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isSelected ? '#000' : opt.color }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: isSelected ? opt.color : 'var(--surface-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isSelected ? '#FFFFFF' : opt.color }}>
                         <IconComponent size={14} />
                       </div>
                       <input
@@ -1989,7 +1989,7 @@ export default function Routine() {
                           <Check size={10} color="#000" strokeWidth={3} />
                         </span>
                       )}
-                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: isSelected ? cat.color : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isSelected ? '#000' : cat.color }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: isSelected ? cat.color : 'var(--surface-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isSelected ? (cat.value === 'deep_work' ? '#000000' : '#FFFFFF') : cat.color }}>
                         <IconComponent size={18} />
                       </div>
                       <div style={{ fontWeight: isSelected ? 700 : 600, fontSize: '12px', color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
@@ -2251,7 +2251,7 @@ export default function Routine() {
                   width: '32px',
                   height: '32px',
                   borderRadius: '8px',
-                  background: blockIsMustDo ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                  background: blockIsMustDo ? 'rgba(245, 158, 11, 0.2)' : 'var(--surface-elevated)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -2301,7 +2301,7 @@ export default function Routine() {
                   width: '32px',
                   height: '32px',
                   borderRadius: '8px',
-                  background: blockIsProtected ? 'rgba(129, 140, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                  background: blockIsProtected ? 'rgba(129, 140, 248, 0.2)' : 'var(--surface-elevated)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

@@ -1342,7 +1342,7 @@ export default function Settings() {
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: isChecked ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isChecked ? 'var(--gold-primary)' : 'var(--text-dim)', flexShrink: 0 }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: isChecked ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-surface-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isChecked ? 'var(--gold-primary)' : 'var(--text-dim)', flexShrink: 0 }}>
                         <IconComp size={14} />
                       </div>
                       <div style={{ flex: 1 }}>
@@ -1444,7 +1444,7 @@ export default function Settings() {
                         navigator.clipboard.writeText(partnerInviteUrl);
                         toast.success('Invite link copied to clipboard!');
                       }}
-                      style={{ background: 'var(--emerald-accent)', color: '#000', fontWeight: 700 }}
+                      style={{ background: 'var(--emerald-accent)', color: '#FFFFFF', fontWeight: 700 }}
                     >
                       <Copy size={13} /> Copy
                     </Button>
