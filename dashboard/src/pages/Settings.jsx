@@ -1576,7 +1576,10 @@ export default function Settings() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            <Field label="Earn Rate (Paise / minute)" hint="100 paise = 1 INR / min">
+            <Field
+              label="Earn Rate (Paise / minute)"
+              hint={`100 paise = 1 INR / min (Current: ₹${(((walletPolicy.earnRatePaisePerMin || 100)) / 100).toFixed(2)}/min - updates immediately)`}
+            >
               <input
                 className="input"
                 type="number"
@@ -1586,7 +1589,10 @@ export default function Settings() {
               />
             </Field>
 
-            <Field label="Penalty Rate (Paise / unworked min)" hint="Deducted for unworked schedule gaps">
+            <Field
+              label="Penalty Rate (Paise / unworked min)"
+              hint={`Deducted for unworked schedule gaps (Current: ₹${(((walletPolicy.penaltyRatePaisePerMin || 100)) / 100).toFixed(2)}/min)`}
+            >
               <input
                 className="input"
                 type="number"

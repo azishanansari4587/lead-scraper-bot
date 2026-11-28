@@ -564,7 +564,7 @@ class WalletService {
       let isLoosening = false;
 
       // Determine loosening vs tightening
-      if (key === 'earnRatePaisePerMin' && val > policy.earnRatePaisePerMin) isLoosening = true;
+      // NOTE: earnRatePaisePerMin is the user's custom reward rate - it is ALWAYS applied immediately.
       if (key === 'penaltyRatePaisePerMin' && val < policy.penaltyRatePaisePerMin) isLoosening = true;
       if (key === 'dailyBreakAllowanceMinutes' && val > policy.dailyBreakAllowanceMinutes) isLoosening = true;
       if (key === 'monthlyLeaveAllowanceDays' && val > policy.monthlyLeaveAllowanceDays) isLoosening = true;
@@ -579,20 +579,26 @@ class WalletService {
       }
     }
 
-    // Apply immediate tightening
-    if (Object.keys(immediateUpdates).length > 0) {
-      await policy.update(immediateUpdates);
+    // Clean up any pending loosened settings that are overridden by immediate updates
+    let existingPending = policy.pendingPolicyJson ? JSON.parse(policy.pendingPolicyJson) : {};
+    for (const key of Object.keys(immediateUpdates)) {
+      if (existingPending[key] !== undefined) {
+        delete existingPending[key];
+      }
     }
 
-    // Queue loosening for next local day
-    if (Object.keys(queuedLoosening).length > 0) {
-      const existingPending = policy.pendingPolicyJson ? JSON.parse(policy.pendingPolicyJson) : {};
-      const mergedPending = { ...existingPending, ...queuedLoosening };
+    const mergedPending = { ...existingPending, ...queuedLoosening };
+    if (Object.keys(mergedPending).length > 0) {
+      immediateUpdates.pendingPolicyJson = JSON.stringify(mergedPending);
+      immediateUpdates.pendingEffectiveDate = tomorrowStr;
+    } else if (policy.pendingPolicyJson) {
+      immediateUpdates.pendingPolicyJson = null;
+      immediateUpdates.pendingEffectiveDate = null;
+    }
 
-      await policy.update({
-        pendingPolicyJson: JSON.stringify(mergedPending),
-        pendingEffectiveDate: tomorrowStr
-      });
+    // Apply immediate updates (including any cleaned/updated pending queue)
+    if (Object.keys(immediateUpdates).length > 0) {
+      await policy.update(immediateUpdates);
     }
 
     await policy.reload();

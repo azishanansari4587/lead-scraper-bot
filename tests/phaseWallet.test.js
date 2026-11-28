@@ -579,6 +579,30 @@ describe('Phase Work Wallet Engine — Full Comprehensive Suite', () => {
       expect(JSON.parse(pol.pendingPolicyJson).dailyBreakAllowanceMinutes).toBe(120);
       expect(pol.pendingEffectiveDate).toBeTruthy();
     });
+
+    it('applies earnRatePaisePerMin immediately without queueing as loosening', async () => {
+      await WalletPolicy.create({
+        userId: testUserId,
+        earnRatePaisePerMin: 100,
+        penaltyRatePaisePerMin: 100
+      });
+
+      // Increasing earn rate from 100 to 10000 (user-configured reward multiplier)
+      const res = await request(app)
+        .patch('/api/wallet/policy')
+        .set(authHeaders)
+        .send({
+          earnRatePaisePerMin: 10000
+        });
+
+      expect(res.status).toBe(200);
+      const pol = res.body.policy;
+
+      // Must be applied immediately, NOT queued in pendingPolicyJson
+      expect(pol.earnRatePaisePerMin).toBe(10000);
+      expect(pol.pendingPolicyJson).toBeNull();
+      expect(pol.pendingEffectiveDate).toBeNull();
+    });
   });
 
   // ===========================================================================

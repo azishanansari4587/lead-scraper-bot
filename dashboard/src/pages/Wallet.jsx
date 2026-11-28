@@ -34,6 +34,12 @@ export default function WalletPage() {
     pricePaise: 50000,
     icon: 'Gift'
   });
+  const [policyForm, setPolicyForm] = useState(null);
+
+  const formatRatePerMin = (paise) => {
+    const rupees = (paise || 0) / 100;
+    return Number.isInteger(rupees) ? rupees.toString() : rupees.toFixed(2);
+  };
 
   const loadData = async () => {
     try {
@@ -49,7 +55,10 @@ export default function WalletPage() {
       if (lRes?.success) setLedgerData(lRes);
       if (schRes?.success) setSchedules(schRes.schedules || []);
       if (rewRes?.success) setRewards(rewRes.rewards || []);
-      if (polRes?.success) setPolicy(polRes.policy);
+      if (polRes?.success) {
+        setPolicy(polRes.policy);
+        setPolicyForm((prev) => (prev ? { ...polRes.policy, ...prev } : polRes.policy));
+      }
     } catch (err) {
       setMsg({ text: err.message || 'Failed to load wallet data', type: 'error' });
     } finally {
@@ -180,9 +189,12 @@ export default function WalletPage() {
     setActionLoading(true);
     try {
       const res = await api.updateWalletPolicy(updates);
-      setPolicy(res.policy);
+      if (res?.policy) {
+        setPolicy(res.policy);
+        setPolicyForm(res.policy);
+      }
       setMsg({
-        text: 'Policy updated. Tightening changes are active immediately; loosening changes queue for tomorrow.',
+        text: 'Policy and rates updated successfully! Earn rate changes are active immediately.',
         type: 'success'
       });
       await loadData();
@@ -191,6 +203,12 @@ export default function WalletPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleSavePolicyForm = async (e) => {
+    if (e) e.preventDefault();
+    if (!policyForm) return;
+    await handleUpdatePolicy(policyForm);
   };
 
   const formatInr = (paise) => {
@@ -270,8 +288,8 @@ export default function WalletPage() {
               Target & Earning Cap
             </span>
             <span style={{ fontSize: '0.75rem', color: 'var(--success, #059669)', fontWeight: 700, background: 'var(--success-bg)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--success-border)' }}>
-              Cap: ₹{((((settlement.dailyTargetMinutes || 0) * (policy?.earnRatePaisePerMin || 100)) +
-                (policy?.overtimeMode !== 'none' ? (policy?.overtimeCapMinutes || 0) * (policy?.overtimeMode === 'half_rate' ? Math.floor((policy?.earnRatePaisePerMin || 100) / 2) : (policy?.earnRatePaisePerMin || 100)) : 0)) / 100).toFixed(0)}
+              Cap: ₹{Math.floor(((((settlement.dailyTargetMinutes || 0) * (policy?.earnRatePaisePerMin || 100)) +
+                (policy?.overtimeMode !== 'none' ? (policy?.overtimeCapMinutes || 0) * (policy?.overtimeMode === 'half_rate' ? Math.floor((policy?.earnRatePaisePerMin || 100) / 2) : (policy?.earnRatePaisePerMin || 100)) : 0)) / 100))}
             </span>
           </div>
           <div style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--wallet-target-color, #0284C7)', margin: '4px 0' }}>
@@ -291,15 +309,19 @@ export default function WalletPage() {
           <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
             <div>
               <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success, #059669)' }}>
-                +₹{((policy?.earnRatePaisePerMin || 100) / 100).toFixed(0)}/m
+                +₹{formatRatePerMin(policy?.earnRatePaisePerMin)}/m
               </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary, #64748b)' }}>Earn Rate</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary, #64748b)' }}>
+                Earn Rate ({policy?.earnRatePaisePerMin ?? 100}p/m)
+              </div>
             </div>
             <div>
               <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger, #e11d48)' }}>
-                -₹{((policy?.penaltyRatePaisePerMin || 100) / 100).toFixed(0)}/m
+                -₹{formatRatePerMin(policy?.penaltyRatePaisePerMin)}/m
               </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary, #64748b)' }}>Missed Gap Rate</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary, #64748b)' }}>
+                Missed Gap Rate ({policy?.penaltyRatePaisePerMin ?? 100}p/m)
+              </div>
             </div>
           </div>
         </div>
@@ -706,34 +728,71 @@ export default function WalletPage() {
       {/* TAB 4: POLICY */}
       {activeTab === 'policy' && policy && (
         <div className="wallet-card" style={{ padding: '24px', maxWidth: '720px' }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: '1.2rem', color: 'var(--text-primary)' }}>Policy & Guardrail Settings</h3>
-
-          <div style={{ display: 'grid', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-primary)' }}>
-                Earn Rate (paise per minute)
-              </label>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)' }}>Policy & Rate Settings</h3>
+              <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+                Customize your reward multiplier and accountability penalties. Earn rates update immediately.
+              </p>
+            </div>
+            {policy?.pendingEffectiveDate && (
+              <span style={{
+                fontSize: '0.75rem',
+                color: 'var(--gold-primary)',
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid var(--gold-primary)',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                fontWeight: 600
+              }}>
+                Pending Loosening: {policy.pendingEffectiveDate}
+              </span>
+            )}
+          </div>
+
+          <form onSubmit={handleSavePolicyForm} style={{ display: 'grid', gap: '20px' }}>
+            <div style={{ background: 'var(--surface-subtle)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Earn Rate (Paise per minute)
+                </label>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--success, #059669)', background: 'var(--success-bg)', padding: '2px 8px', borderRadius: '6px' }}>
+                  = ₹{formatRatePerMin(policyForm?.earnRatePaisePerMin ?? policy.earnRatePaisePerMin)} / min
+                </span>
+              </div>
               <input
                 type="number"
+                min="0"
                 className="wallet-input"
-                defaultValue={policy.earnRatePaisePerMin}
-                onBlur={(e) => handleUpdatePolicy({ earnRatePaisePerMin: parseInt(e.target.value, 10) })}
-                style={{ width: '100%', padding: '8px 12px' }}
+                value={policyForm?.earnRatePaisePerMin ?? policy.earnRatePaisePerMin ?? 100}
+                onChange={(e) => setPolicyForm({ ...(policyForm || policy), earnRatePaisePerMin: Number(e.target.value) })}
+                style={{ width: '100%', padding: '10px 12px', fontSize: '1rem', fontWeight: 600 }}
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>100 paise = 1 INR / min</span>
+              <span style={{ display: 'block', marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                100 paise = ₹1.00 / min. Example: 10000 paise = ₹100.00 / min. Applies immediately to all active and future sessions.
+              </span>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-primary)' }}>
-                Penalty Rate (paise per unworked minute)
-              </label>
+            <div style={{ background: 'var(--surface-subtle)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Penalty Rate (Paise per unworked minute)
+                </label>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--danger, #e11d48)', background: 'var(--danger-bg, rgba(225, 29, 72, 0.1))', padding: '2px 8px', borderRadius: '6px' }}>
+                  = ₹{formatRatePerMin(policyForm?.penaltyRatePaisePerMin ?? policy.penaltyRatePaisePerMin)} / min
+                </span>
+              </div>
               <input
                 type="number"
+                min="0"
                 className="wallet-input"
-                defaultValue={policy.penaltyRatePaisePerMin}
-                onBlur={(e) => handleUpdatePolicy({ penaltyRatePaisePerMin: parseInt(e.target.value, 10) })}
-                style={{ width: '100%', padding: '8px 12px' }}
+                value={policyForm?.penaltyRatePaisePerMin ?? policy.penaltyRatePaisePerMin ?? 100}
+                onChange={(e) => setPolicyForm({ ...(policyForm || policy), penaltyRatePaisePerMin: Number(e.target.value) })}
+                style={{ width: '100%', padding: '10px 12px', fontSize: '1rem', fontWeight: 600 }}
               />
+              <span style={{ display: 'block', marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Deducted for unworked schedule gaps during work windows.
+              </span>
             </div>
 
             <div>
@@ -741,10 +800,10 @@ export default function WalletPage() {
                 Overtime Mode
               </label>
               <select
-                defaultValue={policy.overtimeMode}
+                value={policyForm?.overtimeMode ?? policy.overtimeMode ?? 'none'}
                 className="wallet-input select"
-                onChange={(e) => handleUpdatePolicy({ overtimeMode: e.target.value })}
-                style={{ width: '100%', padding: '8px 12px' }}
+                onChange={(e) => setPolicyForm({ ...(policyForm || policy), overtimeMode: e.target.value })}
+                style={{ width: '100%', padding: '10px 12px' }}
               >
                 <option value="none">None (Zero points for overtime)</option>
                 <option value="half_rate">Half Rate (50% earning rate)</option>
@@ -758,13 +817,35 @@ export default function WalletPage() {
               </label>
               <input
                 type="number"
+                min="0"
                 className="wallet-input"
-                defaultValue={policy.dailyBreakAllowanceMinutes}
-                onBlur={(e) => handleUpdatePolicy({ dailyBreakAllowanceMinutes: parseInt(e.target.value, 10) })}
-                style={{ width: '100%', padding: '8px 12px' }}
+                value={policyForm?.dailyBreakAllowanceMinutes ?? policy.dailyBreakAllowanceMinutes ?? 90}
+                onChange={(e) => setPolicyForm({ ...(policyForm || policy), dailyBreakAllowanceMinutes: Number(e.target.value) })}
+                style={{ width: '100%', padding: '10px 12px' }}
               />
             </div>
-          </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+              <button
+                type="submit"
+                disabled={actionLoading}
+                className="wallet-btn-primary"
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '8px',
+                  background: 'var(--gold-primary)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  cursor: actionLoading ? 'not-allowed' : 'pointer',
+                  border: 'none',
+                  boxShadow: 'var(--gold-shadow)'
+                }}
+              >
+                {actionLoading ? 'Saving Rates...' : 'Save Policy & Rates'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
