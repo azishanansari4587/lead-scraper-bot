@@ -14,6 +14,7 @@ const CalendarEvent = require('../../models/CalendarEvent');
 const UserSettings = require('../../models/UserSettings');
 const Lead = require('../../models/Lead');
 const MindsetGateLog = require('../../models/MindsetGateLog');
+const RoutineEntry = require('../../models/RoutineEntry');
 const gateService = require('../gateService');
 const logger = require('../../config/logger');
 
@@ -111,7 +112,8 @@ class PlannerService {
       followUpsMissed,
       plan,
       existingReview,
-      completedGate
+      completedGate,
+      routineEntries
     ] = await Promise.all([
       Call.count({
         where: {
@@ -165,8 +167,15 @@ class PlannerService {
           completedAt: { [Op.ne]: null }
         },
         order: [['completedAt', 'DESC']]
+      }),
+      RoutineEntry.findAll({
+        where: { userId, date: dateStr }
       })
     ]);
+
+    const routineCompletedCount = (routineEntries || []).filter((e) => e.status === 'done').length;
+    const routineCarriedCount = (routineEntries || []).filter((e) => (e.carryCount || 0) > 0).length;
+    const routineMissedCount = (routineEntries || []).filter((e) => e.status === 'missed').length;
 
     // Unfinished MITs check
     const mits = [];
@@ -199,8 +208,13 @@ class PlannerService {
         followUpsDone,
         followUpsMissed,
         gateCompleted: Boolean(completedGate),
-        gateMethod: completedGate ? completedGate.method : null
+        gateMethod: completedGate ? completedGate.method : null,
+        routineCompletedCount,
+        routineTotalCount: (routineEntries || []).length,
+        routineCarriedCount,
+        routineMissedCount
       },
+      routineEntries: routineEntries || [],
       tasksCompleted,
       unfinishedMits,
       plan,
@@ -446,9 +460,40 @@ class PlannerService {
       logger.warn({ err, userId }, 'Failed to calculate gate streak in plannerService');
     }
 
+    // 4. Calculate Routine Streak
+    let routineStreak = 0;
+    try {
+      const routineCompletedEntries = await RoutineEntry.findAll({
+        where: {
+          userId,
+          status: 'done',
+          createdAt: { [Op.gte]: sixtyDaysAgo }
+        },
+        attributes: ['date'],
+        raw: true
+      });
+      const routineDates = new Set(routineCompletedEntries.map((r) => r.date));
+      const routineCursor = new Date(now);
+      if (!routineDates.has(todayLocalStr)) {
+        routineCursor.setDate(routineCursor.getDate() - 1);
+      }
+      while (true) {
+        const dStr = this.getLocalDateStr(routineCursor, tz);
+        if (routineDates.has(dStr)) {
+          routineStreak++;
+          routineCursor.setDate(routineCursor.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to calculate routine streak');
+    }
+
     return {
       reviewStreak,
       targetStreak,
+      routineStreak,
       targetOutreach,
       targetCalls,
       timezone: tz,

@@ -12,6 +12,7 @@ const MindmapNode = require('../../models/MindmapNode');
 const AuditLog = require('../../models/AuditLog');
 const logger = require('../../config/logger');
 const { handleTaskCompletion } = require('../../services/planner/taskRecurrence');
+const routineService = require('../../services/routine/routineService');
 
 const router = express.Router();
 
@@ -194,6 +195,11 @@ router.patch('/:id', async (req, res, next) => {
       } else if (previousStatus === 'done' && parsed.status === 'todo') {
         await MindmapNode.update({ status: 'todo' }, { where: { id: effectiveNodeId, userId } }).catch(() => {});
       }
+    }
+
+    // Synchronize to linked CEO Routine entries (Amendment 2)
+    if (parsed.status === 'done' && previousStatus !== 'done') {
+      await routineService.syncFromCompletedTask(userId, task.id).catch(() => {});
     }
 
     // If task was marked done and has a recurrence rule, spawn next occurrence

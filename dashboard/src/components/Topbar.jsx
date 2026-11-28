@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Globe, ShieldCheck, Sun, Moon, Menu } from 'lucide-react';
+import WalletChip from './WalletChip';
 
 export default function Topbar({
   title,
@@ -43,6 +44,8 @@ export default function Topbar({
       </div>
 
       <div className="topbar-right">
+        <WalletChip />
+
         <div className="topbar-system-status" title="Safe Scraping & Compliance Engine Active">
           <ShieldCheck size={16} aria-hidden="true" />
           <span>Export Network Active</span>

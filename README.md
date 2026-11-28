@@ -329,6 +329,16 @@ All endpoints (except public `/health` and signed download URLs) require Clerk J
    - **Streak & Dashboard Integration:** Upon completing all 5 quotes, the gate plays the unlock animation and reveals the dashboard. Today's Command Center displays the updated Mindset Streak badge, and evening reviews track gate completion.
    - **Next-Day Strictness Protection:** In Settings, attempting to disable the gate or lower matching strictness displays a banner stating the relaxation will take effect tomorrow, preventing mid-day discipline bypass.
 
+8. **Work Wallet Engine & Virtual Currency Demo:**
+   - **Virtual Motivation Points:** The Work Wallet rewards real working time and penalizes unworked scheduled gaps using virtual points (100 minor paise = 1 INR / point). Prominently marked as *Virtual self-motivation currency (points). Not real money.*
+   - **Live Sticky Topbar Chip:** Real-time ticking balance with direction indicator (`▲ +₹1/m` while working, `▼ -₹1/m` during unworked gaps). Click to reveal daily target progress, break allowance, and quick start/stop actions.
+   - **Session Liveness & 60s Heartbeat:** Client sends heartbeat every 60 seconds; sessions auto-stop at the last heartbeat timestamp if 3 minutes pass without pings or if max session length (8h) is reached.
+   - **10-Minute Idle Check Watchdog:** Detects mouse and keyboard inactivity; opens a modal with a 2-minute countdown (120s) asking "Are you still working?". If ignored, session stops and idle minutes are reversed via an adjustment ledger entry.
+   - **Schedules & Derived Target:** Billable work windows derive the daily target minutes directly. Health guardrails reject schedules leaving less than 6.5h sleep and 1h meals.
+   - **Routine Integration:** Starting a routine block whose category counts as work auto-starts a WorkSession; routine Done cleanly stops the session and never creates backdated records.
+   - **Rewards Catalog & Refunds:** Redeem earned virtual points for custom personal rewards, with balance and floor protection. Full refund flow allows returning points to the ledger.
+   - **Next-Day Loosening Protection:** Relaxing wallet policies (lowering penalty, increasing break allowances) queues for the next calendar day; tightening is immediate.
+
 ---
 
 ## 7. Security & Compliance Summary

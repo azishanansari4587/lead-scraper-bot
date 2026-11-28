@@ -2,11 +2,13 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Sun,
+  Wallet,
   LayoutDashboard,
   Search,
   Users,
   PhoneCall,
   Calendar,
+  Clock,
   FileText,
   Megaphone,
   Globe,
@@ -28,6 +30,8 @@ const NAV_GROUPS = [
     title: 'Command Center',
     items: [
       { path: '/today', label: 'Today Hub', icon: Sun },
+      { path: '/wallet', label: 'Work Wallet', icon: Wallet },
+      { path: '/routine', label: 'CEO Routine', icon: Clock },
       { path: '/tasks', label: 'Tasks & MITs', icon: CheckSquare },
       { path: '/leads', label: 'Leads Pipeline', icon: Users },
       { path: '/calls', label: 'Calls & Scripts', icon: PhoneCall },

@@ -15,7 +15,17 @@ import {
   ArrowDown,
   Volume2,
   Mic,
-  Lock
+  Lock,
+  Clock,
+  Send,
+  UserCheck,
+  AlertTriangle,
+  Zap,
+  Award,
+  Moon,
+  Copy,
+  Check,
+  Wallet
 } from 'lucide-react';
 import { api } from '../api';
 import MindsetGateScreen from '../components/MindsetGateScreen';
@@ -83,6 +93,49 @@ export default function Settings() {
   const [savingGateQuotes, setSavingGateQuotes] = useState(false);
   const [practiceGateOpen, setPracticeGateOpen] = useState(false);
 
+  // CEO Routine & Escalation Policy state
+  const [routinePolicy, setRoutinePolicy] = useState({
+    enabled: true,
+    escalationEnabled: true,
+    focusLockEnabled: true,
+    l1NudgeMinutes: 0,
+    l2TelegramMinutes: 15,
+    l3EmailMinutes: 30,
+    l4FocusLockMinutes: 60,
+    quietHoursStart: '22:00',
+    quietHoursEnd: '07:00',
+    maxNudgesPerHour: 2,
+    maxSnoozesPerDay: 2,
+    minDailyRestHours: 7,
+    weeklyRestDay: null,
+    supportedStakes: ['restrict_non_essential_pages', 'pledge_reminder'],
+    pledgeText: 'Every knot tied in Bhadohi depends on commercial discipline in Dubai.'
+  });
+  const [savingRoutinePolicy, setSavingRoutinePolicy] = useState(false);
+  const [partnerUsername, setPartnerUsername] = useState('');
+  const [partnerInviteUrl, setPartnerInviteUrl] = useState('');
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+
+  // Work Wallet Policy state
+  const [walletPolicy, setWalletPolicy] = useState({
+    enabled: true,
+    earnRatePaisePerMin: 100,
+    penaltyRatePaisePerMin: 100,
+    overtimeMode: 'none',
+    overtimeCapMinutes: 0,
+    dailyBreakAllowanceMinutes: 90,
+    monthlyLeaveAllowanceDays: 2,
+    allowNegative: true,
+    floorEnabled: false,
+    walletFloorPaise: 0,
+    idleCheckEnabled: true,
+    idleTimeoutMinutes: 10,
+    maxDailyManualMinutes: 60,
+    minDailyPersonalMinutes: 120
+  });
+  const [walletSettlement, setWalletSettlement] = useState(null);
+  const [savingWalletPolicy, setSavingWalletPolicy] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -90,15 +143,34 @@ export default function Settings() {
   async function loadData() {
     try {
       setLoading(true);
-      const [settingsRes, optoutsRes, userSettingsRes, gateStatusRes, gateQuotesRes] = await Promise.all([
+      const [settingsRes, optoutsRes, userSettingsRes, gateStatusRes, gateQuotesRes, routinePolicyRes, walletPolicyRes, walletStateRes] = await Promise.all([
         api.getSettings().catch(() => ({ settings: {} })),
         api.getOptOuts().catch(() => ({ optouts: [] })),
         api.getUserSettings().catch(() => ({ settings: {} })),
         api.getGateStatus().catch(() => null),
-        api.getGateQuotes().catch(() => ({ quotes: [] }))
+        api.getGateQuotes().catch(() => ({ quotes: [] })),
+        api.getRoutinePolicy().catch(() => null),
+        api.getWalletPolicy().catch(() => null),
+        api.getWalletState().catch(() => null)
       ]);
       setSettings(settingsRes.settings);
       setOptouts(optoutsRes.optouts || []);
+      if (walletStateRes?.settlement) {
+        setWalletSettlement(walletStateRes.settlement);
+      }
+      if (routinePolicyRes?.policy) {
+        const pol = routinePolicyRes.policy;
+        setRoutinePolicy({
+          ...pol,
+          supportedStakes: pol.supportedStakes
+            ? (typeof pol.supportedStakes === 'string' ? JSON.parse(pol.supportedStakes) : pol.supportedStakes)
+            : ['restrict_non_essential_pages', 'pledge_reminder'],
+          weeklyRestDay: pol.weeklyRestDay
+        });
+      }
+      if (walletPolicyRes?.policy) {
+        setWalletPolicy(walletPolicyRes.policy);
+      }
       if (gateStatusRes) {
         setGateStatus(gateStatusRes);
         setGateConfig({
@@ -237,6 +309,80 @@ export default function Settings() {
       toast.error(`Failed to save key: ${err.message}`);
     } finally {
       setSavingKey(false);
+    }
+  }
+
+  async function handleSaveRoutinePolicy(e) {
+    e.preventDefault();
+    try {
+      setSavingRoutinePolicy(true);
+      const res = await api.updateRoutinePolicy(routinePolicy);
+      if (res.hasPendingChanges) {
+        toast.info(res.message || 'Immediate updates applied. Loosened rules take effect next local day.');
+      } else {
+        toast.success('Routine enforcement policy updated successfully.');
+      }
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update routine policy');
+    } finally {
+      setSavingRoutinePolicy(false);
+    }
+  }
+
+  async function handleSaveWalletPolicy(e) {
+    if (e) e.preventDefault();
+    try {
+      setSavingWalletPolicy(true);
+      const res = await api.updateWalletPolicy(walletPolicy);
+      if (res.policy) setWalletPolicy(res.policy);
+      toast.success('Work Wallet policy and rates updated successfully.');
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update wallet policy');
+    } finally {
+      setSavingWalletPolicy(false);
+    }
+  }
+
+  const formatDualTime = (hhmm) => {
+    if (!hhmm || !hhmm.includes(':')) return { uae: hhmm, ist: hhmm };
+    const [h, m] = hhmm.split(':').map(Number);
+    let istH = h + 1;
+    let istM = m + 30;
+    if (istM >= 60) {
+      istH += 1;
+      istM -= 60;
+    }
+    if (istH >= 24) istH -= 24;
+    const pad = (n) => String(n).padStart(2, '0');
+    return {
+      uae: `${pad(h)}:${pad(m)} GST`,
+      ist: `${pad(istH)}:${pad(istM)} IST`
+    };
+  };
+
+  async function handleGeneratePartnerInvite() {
+    try {
+      setGeneratingInvite(true);
+      const res = await api.createPartnerInvite(partnerUsername.trim() || undefined);
+      setPartnerInviteUrl(res.deepLink);
+      toast.success('Generated partner invite deep link! Copy and send to your accountability partner.');
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate invite');
+    } finally {
+      setGeneratingInvite(false);
+    }
+  }
+
+  async function handleStopPartner() {
+    if (!window.confirm('Disconnect your accountability partner? They will no longer receive routine nudges.')) return;
+    try {
+      await api.stopPartnerSharing();
+      toast.success('Accountability partner revoked.');
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to revoke partner');
     }
   }
 
@@ -805,6 +951,739 @@ export default function Settings() {
             <strong>100% Privacy & Audio Safety:</strong> Knotiq never records, uploads, or stores your voice. Web Speech API audio processing runs directly and privately inside your browser runtime.
           </span>
         </div>
+      </Card>
+
+      {/* CEO Routine & Escalation Ladder */}
+      <Card
+        title="CEO Routine & Escalation Ladder"
+        icon={Clock}
+        subtitle="Self-configured accountability for daily must-dos: quiet hours suppression, escalation stages, and Telegram accountability partner."
+      >
+        <form onSubmit={handleSaveRoutinePolicy} style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+          {/* Pending Delayed Loosening Notice if present */}
+          {routinePolicy?.pendingEffectiveDate && (
+            <div
+              style={{
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <AlertTriangle size={20} color="var(--gold-primary)" style={{ flexShrink: 0 }} />
+              <div style={{ fontSize: '13px', color: 'var(--gold-primary)', lineHeight: '1.4' }}>
+                <strong>Pending Policy Loosening:</strong> Relaxed enforcement rules take effect on <strong>{routinePolicy.pendingEffectiveDate}</strong> (start of next local day) to safeguard active daily discipline.
+              </div>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))',
+              gap: '24px',
+              alignItems: 'start'
+            }}
+          >
+            {/* Left Column: Quiet Hours, Rest Day & Escalation Steps */}
+            <div
+              style={{
+                background: 'var(--bg-app)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '22px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '18px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Moon size={16} /> Health Guardrails & Quiet Hours
+                </div>
+                <Badge variant="secondary">Immune From Nudges</Badge>
+              </div>
+
+              {/* Quiet Hours Start & End */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <Field label="Quiet Hours Start (HH:MM)" id="quiet-start">
+                  <div className="luxury-time-input-wrap">
+                    <span className="input-icon">
+                      <Moon size={15} color="var(--gold-primary)" />
+                    </span>
+                    <input
+                      type="text"
+                      value={routinePolicy.quietHoursStart || '22:00'}
+                      onChange={(e) => setRoutinePolicy({ ...routinePolicy, quietHoursStart: e.target.value })}
+                      pattern="^\d{2}:\d{2}$"
+                      required
+                      placeholder="22:00"
+                    />
+                  </div>
+                  {/* Quick Start Presets */}
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    {['21:00', '22:00', '23:00', '00:00'].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setRoutinePolicy({ ...routinePolicy, quietHoursStart: t })}
+                        style={{
+                          fontSize: '10px',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          background: routinePolicy.quietHoursStart === t ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-surface)',
+                          border: routinePolicy.quietHoursStart === t ? '1px solid var(--gold-primary)' : '1px solid var(--border-subtle)',
+                          color: routinePolicy.quietHoursStart === t ? 'var(--gold-primary)' : 'var(--text-dim)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+
+                <Field label="Quiet Hours End (HH:MM)" id="quiet-end">
+                  <div className="luxury-time-input-wrap">
+                    <span className="input-icon">
+                      <Clock size={15} color="#38BDF8" />
+                    </span>
+                    <input
+                      type="text"
+                      value={routinePolicy.quietHoursEnd || '07:00'}
+                      onChange={(e) => setRoutinePolicy({ ...routinePolicy, quietHoursEnd: e.target.value })}
+                      pattern="^\d{2}:\d{2}$"
+                      required
+                      placeholder="07:00"
+                    />
+                  </div>
+                  {/* Quick End Presets */}
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    {['05:00', '06:00', '07:00', '08:00'].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setRoutinePolicy({ ...routinePolicy, quietHoursEnd: t })}
+                        style={{
+                          fontSize: '10px',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          background: routinePolicy.quietHoursEnd === t ? 'rgba(56, 189, 248, 0.2)' : 'var(--bg-surface)',
+                          border: routinePolicy.quietHoursEnd === t ? '1px solid #38BDF8' : '1px solid var(--border-subtle)',
+                          color: routinePolicy.quietHoursEnd === t ? '#38BDF8' : 'var(--text-dim)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+
+              {/* Dual-Time Banner for Quiet Hours */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  fontSize: '12px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Moon size={14} color="var(--gold-primary)" />
+                  <span style={{ color: 'var(--text-secondary)' }}>Quiet Window:</span>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', fontWeight: 700 }}>
+                  <span style={{ color: 'var(--gold-primary)' }}>🇦🇪 {routinePolicy.quietHoursStart || '22:00'} - {routinePolicy.quietHoursEnd || '07:00'} GST</span>
+                  <span style={{ color: '#38BDF8' }}>🇮🇳 {formatDualTime(routinePolicy.quietHoursStart || '22:00').ist.replace(' IST', '')} - {formatDualTime(routinePolicy.quietHoursEnd || '07:00').ist.replace(' IST', '')} IST</span>
+                </div>
+              </div>
+
+              {/* Weekly Rest Day Interactive Pills */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Weekly Rest Day (Rest days are excluded from Routine Score penalties)
+                </label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {[
+                    { label: 'None', val: null },
+                    { label: 'Sun', val: 0 },
+                    { label: 'Mon', val: 1 },
+                    { label: 'Tue', val: 2 },
+                    { label: 'Wed', val: 3 },
+                    { label: 'Thu', val: 4 },
+                    { label: 'Fri', val: 5 },
+                    { label: 'Sat', val: 6 }
+                  ].map((item) => {
+                    const isSelected = routinePolicy.weeklyRestDay === item.val;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setRoutinePolicy({ ...routinePolicy, weeklyRestDay: item.val })}
+                        style={{
+                          flex: item.label === 'None' ? '1 1 100%' : '1 1 auto',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: isSelected ? '1px solid var(--gold-primary)' : '1px solid var(--border-subtle)',
+                          background: isSelected ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-surface)',
+                          color: isSelected ? 'var(--gold-primary)' : 'var(--text-main)',
+                          fontWeight: isSelected ? 700 : 500,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Min Daily Rest Hours */}
+              <Field label="Minimum Daily Rest Hours" id="min-rest-hours">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input
+                    type="number"
+                    min="4"
+                    max="12"
+                    className="input"
+                    value={routinePolicy.minDailyRestHours || 7}
+                    onChange={(e) => setRoutinePolicy({ ...routinePolicy, minDailyRestHours: Number(e.target.value) })}
+                    required
+                    style={{ width: '90px', fontSize: '14px', fontWeight: 700 }}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    Hours required for sleep & personal recovery before triggering overload warnings.
+                  </span>
+                </div>
+              </Field>
+
+              {/* Escalation Steps Header & Ladder */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', marginTop: '10px' }}>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Zap size={16} /> Escalation Ladder Timing
+                </div>
+                <Badge variant="gold">L1 &rarr; L4 Pathway</Badge>
+              </div>
+
+              {/* Ladder Visual Step Badges */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', textAlign: 'center' }}>
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '8px 4px' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: 700 }}>L1 IN-APP</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-main)', fontWeight: 600, marginTop: '2px' }}>0m overdue</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '8px 4px' }}>
+                  <div style={{ fontSize: '10px', color: '#229ED9', fontWeight: 700 }}>L2 TELEGRAM</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-main)', fontWeight: 600, marginTop: '2px' }}>+{routinePolicy.l2TelegramMinutes || 15}m</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '8px 4px' }}>
+                  <div style={{ fontSize: '10px', color: '#38BDF8', fontWeight: 700 }}>L3 EMAIL</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-main)', fontWeight: 600, marginTop: '2px' }}>+{routinePolicy.l3EmailMinutes || 30}m</div>
+                </div>
+                <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px', padding: '8px 4px' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--danger)', fontWeight: 700 }}>L4 LOCK</div>
+                  <div style={{ fontSize: '11px', color: 'var(--danger)', fontWeight: 600, marginTop: '2px' }}>+{routinePolicy.l4FocusLockMinutes || 60}m</div>
+                </div>
+              </div>
+
+              {/* Timing Inputs */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <Field label="L2 Telegram (Min)" id="l2-mins">
+                  <input
+                    type="number"
+                    min="1"
+                    className="input"
+                    value={routinePolicy.l2TelegramMinutes || 15}
+                    onChange={(e) => setRoutinePolicy({ ...routinePolicy, l2TelegramMinutes: Number(e.target.value) })}
+                    style={{ fontSize: '13px' }}
+                  />
+                </Field>
+                <Field label="L3 Email (Min)" id="l3-mins">
+                  <input
+                    type="number"
+                    min="1"
+                    className="input"
+                    value={routinePolicy.l3EmailMinutes || 30}
+                    onChange={(e) => setRoutinePolicy({ ...routinePolicy, l3EmailMinutes: Number(e.target.value) })}
+                    style={{ fontSize: '13px' }}
+                  />
+                </Field>
+                <Field label="L4 Lock (Min)" id="l4-mins">
+                  <input
+                    type="number"
+                    min="1"
+                    className="input"
+                    value={routinePolicy.l4FocusLockMinutes || 60}
+                    onChange={(e) => setRoutinePolicy({ ...routinePolicy, l4FocusLockMinutes: Number(e.target.value) })}
+                    style={{ fontSize: '13px' }}
+                  />
+                </Field>
+              </div>
+
+              {/* Rate Limits */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <Field label="Max Nudges / Hour" id="max-nudges">
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    className="input"
+                    value={routinePolicy.maxNudgesPerHour || 2}
+                    onChange={(e) => setRoutinePolicy({ ...routinePolicy, maxNudgesPerHour: Number(e.target.value) })}
+                  />
+                </Field>
+                <Field label="Max Snoozes / Day" id="max-snoozes">
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    className="input"
+                    value={routinePolicy.maxSnoozesPerDay || 2}
+                    onChange={(e) => setRoutinePolicy({ ...routinePolicy, maxSnoozesPerDay: Number(e.target.value) })}
+                  />
+                </Field>
+              </div>
+
+              {/* Interactive Toggle Cards for Escalation & Focus Lock */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                <div
+                  onClick={() => setRoutinePolicy({ ...routinePolicy, escalationEnabled: !routinePolicy.escalationEnabled })}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    border: routinePolicy.escalationEnabled ? '1px solid var(--gold-primary)' : '1px solid var(--border-subtle)',
+                    background: routinePolicy.escalationEnabled ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-surface)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(routinePolicy.escalationEnabled)}
+                    onChange={() => {}}
+                    style={{ accentColor: 'var(--gold-primary)', pointerEvents: 'none' }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: '13px', color: routinePolicy.escalationEnabled ? 'var(--gold-primary)' : 'var(--text-main)' }}>
+                      Enable Escalation Ladder (L1-L4 Nudges)
+                    </strong>
+                    <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Sends multi-channel alerts when a high-priority Must-Do block is overdue.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setRoutinePolicy({ ...routinePolicy, focusLockEnabled: !routinePolicy.focusLockEnabled })}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    border: routinePolicy.focusLockEnabled ? '1px solid var(--danger)' : '1px solid var(--border-subtle)',
+                    background: routinePolicy.focusLockEnabled ? 'rgba(239, 68, 68, 0.08)' : 'var(--bg-surface)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(routinePolicy.focusLockEnabled)}
+                    onChange={() => {}}
+                    style={{ accentColor: 'var(--danger)', pointerEvents: 'none' }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: '13px', color: routinePolicy.focusLockEnabled ? 'var(--danger)' : 'var(--text-main)' }}>
+                      Enable L4 Focus Lock Screen
+                    </strong>
+                    <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Locks workspace tabs when an MIT task is critically neglected until started or completed.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Supported Stakes & Accountability Partner */}
+            <div
+              style={{
+                background: 'var(--bg-app)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '22px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '18px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Award size={16} /> Supported Stakes & Consequences
+                </div>
+                <Badge variant="gold">Executive Rigor</Badge>
+              </div>
+
+              {/* Stake Toggle Cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {[
+                  {
+                    id: 'restrict_non_essential_pages',
+                    label: 'Restrict Non-Essential Pages',
+                    desc: 'Restricts leads & scrapers until overdue MIT block is handled (Settings & Exports remain open)',
+                    icon: Shield
+                  },
+                  {
+                    id: 'pledge_reminder',
+                    label: 'Display Founder Discipline Pledge',
+                    desc: 'Forces display of your core founder mantra on the lock screen',
+                    icon: Award
+                  },
+                  {
+                    id: 'partner_alert',
+                    label: 'Accountability Partner Alert',
+                    desc: 'Sends Telegram alert to your designated partner if an L4 breach occurs',
+                    icon: Send
+                  }
+                ].map((stake) => {
+                  const isChecked = (routinePolicy.supportedStakes || []).includes(stake.id);
+                  const IconComp = stake.icon;
+                  return (
+                    <div
+                      key={stake.id}
+                      onClick={() => {
+                        const current = routinePolicy.supportedStakes || [];
+                        if (isChecked) {
+                          setRoutinePolicy({ ...routinePolicy, supportedStakes: current.filter((x) => x !== stake.id) });
+                        } else {
+                          setRoutinePolicy({ ...routinePolicy, supportedStakes: [...current, stake.id] });
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '12px',
+                        padding: '12px 14px',
+                        borderRadius: '8px',
+                        border: isChecked ? '1px solid var(--gold-primary)' : '1px solid var(--border-subtle)',
+                        background: isChecked ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-surface)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: isChecked ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-surface-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isChecked ? 'var(--gold-primary)' : 'var(--text-dim)', flexShrink: 0 }}>
+                        <IconComp size={14} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ fontSize: '13px', color: isChecked ? 'var(--gold-primary)' : 'var(--text-main)' }}>
+                            {stake.label}
+                          </strong>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            style={{ accentColor: 'var(--gold-primary)', pointerEvents: 'none' }}
+                          />
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px', lineHeight: '1.3' }}>
+                          {stake.desc}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Founder Discipline Pledge Input */}
+              <Field label="Founder Discipline Pledge">
+                <input
+                  type="text"
+                  className="input"
+                  value={routinePolicy.pledgeText || ''}
+                  onChange={(e) => setRoutinePolicy({ ...routinePolicy, pledgeText: e.target.value })}
+                  placeholder="e.g. Every knot tied in Bhadohi depends on commercial discipline in Dubai."
+                  style={{ fontSize: '13px', padding: '10px 12px' }}
+                />
+              </Field>
+
+              {/* Accountability Partner Section */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', marginTop: '10px' }}>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Send size={16} color="#229ED9" /> Accountability Partner (Telegram Link)
+                </div>
+                <Badge variant="secondary">Telegram Deep Link</Badge>
+              </div>
+
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                Invite a trusted peer, mentor, or executive co-founder. They receive an expiring, cryptographically random single-use link. <strong>Zero private notes or financial figures are ever shared.</strong>
+              </p>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Partner Telegram username (optional)"
+                  value={partnerUsername}
+                  onChange={(e) => setPartnerUsername(e.target.value)}
+                  style={{ flex: 1, fontSize: '13px' }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGeneratePartnerInvite}
+                  disabled={generatingInvite}
+                  style={{ borderColor: '#229ED9', color: '#229ED9', whiteSpace: 'nowrap' }}
+                >
+                  <Send size={14} /> {generatingInvite ? 'Generating...' : 'Generate Telegram Link'}
+                </Button>
+              </div>
+
+              {partnerInviteUrl && (
+                <div
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid var(--emerald-accent)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={16} color="var(--emerald-accent)" />
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--emerald-accent)' }}>
+                      Telegram Deep Link Ready:
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="text"
+                      className="input"
+                      value={partnerInviteUrl}
+                      readOnly
+                      style={{ fontSize: '11px', flex: 1, background: 'var(--surface-color)', color: 'var(--text-main)' }}
+                    />
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(partnerInviteUrl);
+                        toast.success('Invite link copied to clipboard!');
+                      }}
+                      style={{ background: 'var(--emerald-accent)', color: '#FFFFFF', fontWeight: 700 }}
+                    >
+                      <Copy size={13} /> Copy
+                    </Button>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                    Share this link with your partner. When they press <strong>Start</strong> in Telegram, their chat is securely paired.
+                  </div>
+                </div>
+              )}
+
+              {routinePolicy.partnerChatId && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 'var(--radius-md)' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--emerald-accent)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                    <UserCheck size={16} /> Partner Active (Telegram Chat ID: {routinePolicy.partnerChatId})
+                  </span>
+                  <Button type="button" variant="ghost" size="xs" onClick={handleStopPartner} style={{ color: 'var(--danger)' }}>
+                    Revoke Partner
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <Button type="submit" variant="primary" size="md" loading={savingRoutinePolicy} style={{ padding: '10px 24px', fontWeight: 700 }}>
+              Save Routine Policy & Guardrails
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      {/* Work Wallet Engine Card */}
+      <Card
+        title="Work Wallet Engine & Virtual Currency"
+        icon={Wallet}
+        subtitle="Self-motivation virtual currency rewarding real work and penalizing scheduled gaps. Zero real financial value."
+      >
+        <form onSubmit={handleSaveWalletPolicy} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {walletPolicy?.pendingEffectiveDate && (
+            <div style={{
+              padding: '12px 16px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid var(--gold-primary)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px',
+              color: 'var(--text-main)'
+            }}>
+              <strong>Pending Policy Loosening:</strong> Relaxed rates take effect on <strong>{walletPolicy.pendingEffectiveDate}</strong> (start of next local day).
+            </div>
+          )}
+
+          {/* Effective Daily Target & Earning Cap Display */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '14px',
+            padding: '16px',
+            background: 'var(--surface-subtle)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-color)'
+          }}>
+            <div>
+              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                Effective Daily Target
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#38BDF8', margin: '4px 0' }}>
+                {walletSettlement?.dailyTargetMinutes || 0} mins
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                Derived from active windows minus excused breaks
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                Daily Earning Cap
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#10B981', margin: '4px 0' }}>
+                ₹{((((walletSettlement?.dailyTargetMinutes || 0) * (walletPolicy?.earnRatePaisePerMin || 100)) +
+                  (walletPolicy?.overtimeMode !== 'none' ? (walletPolicy?.overtimeCapMinutes || 0) * (walletPolicy?.overtimeMode === 'half_rate' ? Math.floor((walletPolicy?.earnRatePaisePerMin || 100) / 2) : (walletPolicy?.earnRatePaisePerMin || 100)) : 0)) / 100).toFixed(0)}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                Maximum daily earning based on target and overtime cap
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+            <Field label="Earn Rate (Paise / minute)" hint="100 paise = 1 INR / min">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.earnRatePaisePerMin || 100}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, earnRatePaisePerMin: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Penalty Rate (Paise / unworked min)" hint="Deducted for unworked schedule gaps">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.penaltyRatePaisePerMin || 100}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, penaltyRatePaisePerMin: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Overtime Mode" hint="Rewards for work outside scheduled windows">
+              <Select
+                value={walletPolicy.overtimeMode || 'none'}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, overtimeMode: e.target.value })}
+              >
+                <option value="none">None (0 paise earned)</option>
+                <option value="half_rate">Half Rate (50% earning rate)</option>
+                <option value="full_rate">Full Rate (100% earning rate)</option>
+              </Select>
+            </Field>
+
+            <Field label="Overtime Cap (Minutes)" hint="Max overtime minutes eligible for earnings">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.overtimeCapMinutes || 0}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, overtimeCapMinutes: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Daily Break Allowance (Minutes)" hint="Excused break time per day">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.dailyBreakAllowanceMinutes || 90}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, dailyBreakAllowanceMinutes: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Monthly Leave Allowance (Days)" hint="Paid leave days per month">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.monthlyLeaveAllowanceDays || 2}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, monthlyLeaveAllowanceDays: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Min Daily Personal Time (Minutes)" hint="Protected non-work personal time (default 120m)">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.minDailyPersonalMinutes !== undefined ? walletPolicy.minDailyPersonalMinutes : 120}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, minDailyPersonalMinutes: Number(e.target.value) })}
+              />
+            </Field>
+
+            <Field label="Max Daily Manual Minutes" hint="Ceiling for manual session entries">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={walletPolicy.maxDailyManualMinutes || 60}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, maxDailyManualMinutes: Number(e.target.value) })}
+              />
+            </Field>
+          </div>
+
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(walletPolicy.floorEnabled)}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, floorEnabled: e.target.checked })}
+              />
+              <span>Enable Balance Floor (Penalties will not breach floor)</span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(walletPolicy.idleCheckEnabled)}
+                onChange={(e) => setWalletPolicy({ ...walletPolicy, idleCheckEnabled: e.target.checked })}
+              />
+              <span>Enable 10-Minute Idle Check & Countdown Watchdog</span>
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <Button type="submit" variant="primary" size="md" loading={savingWalletPolicy} style={{ padding: '10px 24px', fontWeight: 700 }}>
+              Save Work Wallet Policy
+            </Button>
+          </div>
+        </form>
       </Card>
 
       {/* Suppression & Opt-Out List */}

@@ -78,7 +78,10 @@ async function runLocalMysqlSmokeTest() {
     '005_phase_c_marketing.js',
     '006_template_active_and_lead_statuses.js',
     '007_mindmap_module.js',
-    '008_mindset_gate.js'
+    '008_mindset_gate.js',
+    '009_ceo_routine_engine.js',
+    '010_work_wallet.js',
+    '011_wallet_personal_time.js'
   ];
 
   const [appliedRows] = await sequelize.query('SELECT name FROM SequelizeMeta;');
@@ -209,7 +212,64 @@ async function runLocalMysqlSmokeTest() {
   console.log(`   Inserted MindsetGateLog ID ${gateLogResult} with method="voice"`);
   console.log('✅ Smoke Test 5 PASSED: MindsetQuotes and MindsetGateLogs verified on MySQL.');
 
-  // 10. Clean up smoke test data
+  // 10. Smoke Test 6: Migration 010 & 011 Work Wallet Concurrency & Row Locking (SELECT ... FOR UPDATE)
+  console.log('\n💼 Smoke Test 6: Testing Work Wallet row locking (SELECT ... FOR UPDATE) & unique constraint...');
+  const walletUserId = `wallet_smoke_${Date.now()}`;
+  await sequelize.query(`
+    INSERT INTO WalletPolicies (userId, enabled, earnRatePaisePerMin, penaltyRatePaisePerMin, minDailyPersonalMinutes, createdAt, updatedAt)
+    VALUES (?, 1, 100, 100, 120, NOW(), NOW());
+  `, { replacements: [walletUserId] });
+
+  await sequelize.query(`
+    INSERT INTO WalletStates (userId, balancePaise, isPaused, createdAt, updatedAt)
+    VALUES (?, 0, 0, NOW(), NOW());
+  `, { replacements: [walletUserId] });
+
+  // Fire 5 concurrent transactions simulating parallel /wallet/state settlement
+  const segmentKey = `seg_test_${Date.now()}`;
+  const settleDate = '2026-11-28';
+  let successfulCreations = 0;
+
+  await Promise.all(
+    [1, 2, 3, 4, 5].map(async (workerId) => {
+      const t = await sequelize.transaction();
+      try {
+        // Confirm row-level lock on MySQL
+        const [lockedRows] = await sequelize.query(`
+          SELECT * FROM WalletStates WHERE userId = ? FOR UPDATE;
+        `, { replacements: [walletUserId], transaction: t });
+
+        // Try inserting into WalletLedgerEntries (idempotent unique key)
+        const [existing] = await sequelize.query(`
+          SELECT id FROM WalletLedgerEntries WHERE userId = ? AND date = ? AND segmentKey = ?;
+        `, { replacements: [walletUserId, settleDate, segmentKey], transaction: t });
+
+        if (existing.length === 0) {
+          await sequelize.query(`
+            INSERT INTO WalletLedgerEntries (userId, date, segmentKey, type, amountPaise, minutes, isProvisional, createdAt, updatedAt)
+            VALUES (?, ?, ?, 'earn', 500, 5, 0, NOW(), NOW());
+          `, { replacements: [walletUserId, settleDate, segmentKey], transaction: t });
+          successfulCreations++;
+        }
+
+        await t.commit();
+      } catch (err) {
+        await t.rollback();
+      }
+    })
+  );
+
+  const [ledgerCount] = await sequelize.query(`
+    SELECT COUNT(*) as count FROM WalletLedgerEntries WHERE userId = ? AND segmentKey = ?;
+  `, { replacements: [walletUserId, segmentKey] });
+
+  if (Number(ledgerCount[0].count) !== 1) {
+    throw new Error(`Concurrency failure: expected exactly 1 ledger row, found ${ledgerCount[0].count}`);
+  }
+  console.log(`   Verified parallel workers: exactly 1 ledger entry posted for segmentKey="${segmentKey}".`);
+  console.log('✅ Smoke Test 6 PASSED: MySQL SELECT ... FOR UPDATE and unique constraint guarantee zero double-posting.');
+
+  // 11. Clean up smoke test data
   console.log('\n🧹 Cleaning up test artifacts...');
   await sequelize.query('DELETE FROM Leads WHERE userId = ?;', { replacements: [testUserId] });
   await sequelize.query('DELETE FROM BulkSendLogs WHERE id = ?;', { replacements: [bulkLogResult] });
@@ -218,6 +278,9 @@ async function runLocalMysqlSmokeTest() {
   await sequelize.query('DELETE FROM Mindmaps WHERE id = ?;', { replacements: [mindmapResult] });
   await sequelize.query('DELETE FROM MindsetQuotes WHERE id = ?;', { replacements: [quoteResult] });
   await sequelize.query('DELETE FROM MindsetGateLogs WHERE id = ?;', { replacements: [gateLogResult] });
+  await sequelize.query('DELETE FROM WalletLedgerEntries WHERE userId = ?;', { replacements: [walletUserId] });
+  await sequelize.query('DELETE FROM WalletStates WHERE userId = ?;', { replacements: [walletUserId] });
+  await sequelize.query('DELETE FROM WalletPolicies WHERE userId = ?;', { replacements: [walletUserId] });
   console.log('✅ Cleanup complete.');
 
   await sequelize.close();
